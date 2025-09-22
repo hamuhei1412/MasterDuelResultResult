@@ -103,8 +103,6 @@ function initMatchForm(){
     const turnOrder = $('#turnOrder').value;
     const method = 'coin';
     const value = $('#coinResult').value || null;
-    const pointsValue = $('#pointsValue').value ? Number($('#pointsValue').value) : null;
-    const pointsNote = $('#pointsNote').value || null;
     const rate = $('#rate').value ? Number($('#rate').value) : null;
     const myDeckId = $('#myDeckId').value || null;
     const myDeck = state.decks.find(d=>d.id===myDeckId);
@@ -116,7 +114,7 @@ function initMatchForm(){
     if (!myDeckId) { alert('自分デッキを選択してください'); return; }
     if (!opDeckName || opDeckName.length>60) { alert('相手デッキを選択してください'); return; }
     if (rate!=null && rate<0) { alert('レートは0以上'); return; }
-    if (pointsValue!=null && pointsValue<0) { alert('ポイントは0以上'); return; }
+    
 
     const tagNames = matchTagsCtl.get();
     const tags = tagNames.map(n=>({ tagId: (state.tags.find(t=>t.name===n)?.id)||null, tagName:n }));
@@ -126,7 +124,6 @@ function initMatchForm(){
       result,
       turnOrder,
       initiative: { method, value: value||null },
-      points: { value: pointsValue, note: pointsNote },
       rate,
       myDeckId,
       myDeckName,
