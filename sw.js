@@ -7,7 +7,8 @@ const CORE_ASSETS = [
   './src/app.js',
   './src/db.js',
   './src/ui.js',
-  './src/stats.js'
+  './src/stats.js',
+  './src/charts.js'
 ];
 
 self.addEventListener('install', (event)=>{

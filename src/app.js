@@ -4,7 +4,8 @@ import {
   addMatch, listMatchesByProject, exportAll, exportProject, exportDecksOnly,
   importJSON
 } from './db.js';
-import { kpis, tagStats, filterByTags } from './stats.js';
+import { kpis, tagStats, filterByTags, rateSeries, matchupMatrix } from './stats.js';
+import { drawLineChart } from './charts.js';
 
 // App state
 const state = {
@@ -91,7 +92,7 @@ function initProjectBar(){
 let matchTagsCtl, filterTagsCtl;
 function initMatchForm(){
   $('#playedAt').value = new Date().toISOString().slice(0,16);
-  matchTagsCtl = chipInput($('#match-tags'), { allowNew: true, suggestions: state.tags.map(t=>t.name) });
+  matchTagsCtl = chipInput($('#match-tags'), { allowNew: false, suggestions: state.tags.map(t=>t.name) });
   const form = $('#match-form');
   $('#reset-form').addEventListener('click', ()=> form.reset());
   form.addEventListener('submit', async (e)=>{
@@ -100,19 +101,20 @@ function initMatchForm(){
     const playedAt = new Date($('#playedAt').value).toISOString();
     const result = $('#result').value;
     const turnOrder = $('#turnOrder').value;
-    const method = $('#initiativeMethod').value;
-    const value = $('#initiativeValue').value || null;
+    const method = 'coin';
+    const value = $('#coinResult').value || null;
     const pointsValue = $('#pointsValue').value ? Number($('#pointsValue').value) : null;
     const pointsNote = $('#pointsNote').value || null;
     const rate = $('#rate').value ? Number($('#rate').value) : null;
     const myDeckId = $('#myDeckId').value || null;
-    const myDeckName = ($('#myDeckName').value||'').trim();
-    const opDeckName = ($('#opDeckName').value||'').trim();
+    const myDeck = state.decks.find(d=>d.id===myDeckId);
+    const myDeckName = myDeck ? myDeck.name : '';
+    const opDeckName = $('#opDeckNameSel').value || '';
     const note = $('#note').value || null;
 
     // Validation per spec
-    if (!myDeckName || myDeckName.length>60) { alert('自分デッキ名を確認してください'); return; }
-    if (!opDeckName || opDeckName.length>60) { alert('相手デッキ名を確認してください'); return; }
+    if (!myDeckId) { alert('自分デッキを選択してください'); return; }
+    if (!opDeckName || opDeckName.length>60) { alert('相手デッキを選択してください'); return; }
     if (rate!=null && rate<0) { alert('レートは0以上'); return; }
     if (pointsValue!=null && pointsValue<0) { alert('ポイントは0以上'); return; }
 
@@ -144,6 +146,13 @@ function renderMatchFormDecks(){
   sel.innerHTML = '<option value="">（未選択）</option>';
   for (const d of state.decks){
     sel.appendChild(el('option', { value:d.id }, d.name));
+  }
+  const opSel = $('#opDeckNameSel');
+  if (opSel){
+    opSel.innerHTML = '<option value="">（未選択）</option>';
+    for (const d of state.decks){
+      opSel.appendChild(el('option', { value:d.name }, d.name));
+    }
   }
 }
 
@@ -179,6 +188,32 @@ async function renderDashboard(){
     card('後攻時勝率', formatPct(k.secondWinRate)),
   ));
 
+  // Rate line chart
+  const series = rateSeries(filtered);
+  drawLineChart($('#rate-canvas'), series);
+
+  // Matchup matrix
+  const mx = matchupMatrix(filtered);
+  const tbl = el('table', { class:'matrix' });
+  // header
+  const head = el('tr',{});
+  head.appendChild(el('th',{}, '自\相'));
+  mx.cols.forEach(c=> head.appendChild(el('th',{}, c)));
+  tbl.appendChild(head);
+  // rows
+  mx.rows.forEach((r, ri)=>{
+    const trEl = el('tr',{});
+    trEl.appendChild(el('th',{}, r));
+    mx.cols.forEach((c, ci)=>{
+      const d = mx.data[ri][ci];
+      const label = d.total ? `${(d.winRate??0).toFixed(1)}%\n(${d.wins}/${d.total})` : 'N/A';
+      const bg = heatColor(d.winRate);
+      trEl.appendChild(el('td', { style:`background:${bg}` }, label));
+    });
+    tbl.appendChild(trEl);
+  });
+  mount($('#matchup-table'), tbl);
+
   // Tag stats table
   const rows = tagStats(filtered);
   const table = el('table', { class:'stats' });
@@ -201,6 +236,16 @@ function tr(kind, ...cells){
   const row = el('tr');
   for (const c of cells){ row.appendChild(el(kind,{}, c)); }
   return row;
+}
+
+function heatColor(pct){
+  if (pct==null) return '#1a2033';
+  const t = Math.max(0, Math.min(100, pct)) / 100; // 0..1
+  // red -> yellow -> green
+  const r = t < 0.5 ? 255 : Math.round(255*(1 - (t-0.5)*2));
+  const g = t < 0.5 ? Math.round(255*(t*2)) : 255;
+  const b = 80;
+  return `rgb(${r},${g},${b})`;
 }
 
 // Deck UI

@@ -73,3 +73,38 @@ export function rate(num, den) {
   return Math.round((num/den)*1000)/10; // 0.1% 単位
 }
 
+// Rate series: [{x: timestamp(ms), y: rate(number)}]
+export function rateSeries(matches){
+  const series = [];
+  for (const m of matches){
+    if (m.rate==null) continue;
+    const t = Date.parse(m.playedAt || '');
+    if (!isFinite(t)) continue;
+    series.push({ x: t, y: Number(m.rate) });
+  }
+  series.sort((a,b)=>a.x-b.x);
+  return series;
+}
+
+// Matchup matrix: rows = myDeckName, cols = opDeckName
+export function matchupMatrix(matches){
+  const rowSet = new Set();
+  const colSet = new Set();
+  const cell = new Map(); // key: `${r}\u0001${c}` -> {wins,total}
+  for (const m of matches){
+    const r = m.myDeckName || '(未設定)';
+    const c = m.opDeckName || '(未設定)';
+    rowSet.add(r); colSet.add(c);
+    const key = r + '\u0001' + c;
+    const cur = cell.get(key) || { wins:0, total:0 };
+    cur.total += 1; if (m.result==='win') cur.wins += 1;
+    cell.set(key, cur);
+  }
+  const rows = Array.from(rowSet).sort();
+  const cols = Array.from(colSet).sort();
+  const data = rows.map(r => cols.map(c => {
+    const {wins=0,total=0} = cell.get(r+'\u0001'+c) || {};
+    return { wins, total, winRate: total? Math.round((wins/total)*1000)/10 : null };
+  }));
+  return { rows, cols, data };
+}
