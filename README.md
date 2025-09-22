@@ -25,7 +25,24 @@ git push -u origin main
 
 3. Actions タブで "Deploy Pages" が自動実行 → 成功後、Pages のURLが表示されます
 
-ワークフローは `.github/workflows/pages.yml` で、ルート直下の静的ファイルをそのまま配信します。`sw.js` は相対パス登録のため、`https://<user>.github.io/<repo>/` 配下でも動作します。
+デプロイ方法は2通り用意しています。
+
+- GitHub Actions 方式（推奨）: `.github/workflows/pages.yml`
+  - リポジトリ Settings → Pages → Build and deployment: 「GitHub Actions」に設定
+  - リポジトリ Settings → Actions → General → Workflow permissions: 「Read and write permissions」に設定
+  - これで Actions が Pages サイトの有効化とデプロイを行います
+
+- gh-pages ブランチ方式（代替）: `.github/workflows/pages-branch.yml`
+  - Settings → Pages → Build and deployment: 「Deploy from a branch」
+  - Branch: `gh-pages` / フォルダ: `/ (root)` を選択
+  - `pages-branch.yml` により `main` から `gh-pages` へ静的ファイルを自動反映
+
+どちらの方式でも、`sw.js` は相対パス登録のため `https://<user>.github.io/<repo>/` 配下で動作します。
+
+更新反映について:
+- 基本は「コミットして push するだけ」でOKです。Service Worker はコアアセット（`index.html`, `styles.css`, `src/*`, `sw.js`）を Network-first で取得し、常に最新版を取りに行きます（失敗時のみキャッシュにフォールバック）。
+- オフライン時はキャッシュから表示されます。
+- それでも切り替わらない場合は、ブラウザのハードリロードをお試しください。
 
 ## CI (静的チェック)
 
@@ -42,4 +59,3 @@ git push -u origin main
 - Service Worker によるオフライン対応
 
 今後: グラフ描画、マイグレーション精緻化、入力バリデーションの警告強化 等
-
