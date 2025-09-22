@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Master Duel 戦績トラッカー (ローカル)</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Master Duel 戦績トラッカー</h1>
+      <nav>
+        <button data-view="dashboard" class="active">ダッシュボード</button>
+        <button data-view="match">対戦入力</button>
+        <button data-view="decks">デッキ</button>
+        <button data-view="tags">タグ</button>
+        <button data-view="projects">プロジェクト</button>
+        <button data-view="settings">設定/バックアップ</button>
+      </nav>
+    </header>
+
+    <section id="project-bar">
+      <label>アクティブプロジェクト:</label>
+      <select id="active-project"></select>
+      <button id="create-project">新規作成</button>
+      <span id="project-period"></span>
+    </section>
+
+    <main>
+      <section id="view-dashboard" class="view visible">
+        <h2>ダッシュボード</h2>
+        <div class="filters">
+          <details>
+            <summary>フィルタ</summary>
+            <div class="filter-row">
+              <label>タグ（複数）:</label>
+              <div id="filter-tags" class="chip-input" data-allow-new="false"></div>
+              <label class="toggle"><input type="checkbox" id="filter-tags-mode" />AND/OR 切替（ON=AND）</label>
+            </div>
+          </details>
+        </div>
+        <div id="kpi" class="kpi"></div>
+        <div id="tag-stats" class="panel"></div>
+      </section>
+
+      <section id="view-match" class="view">
+        <h2>対戦入力</h2>
+        <form id="match-form">
+          <div class="grid">
+            <label>日時<input type="datetime-local" id="playedAt" required /></label>
+            <label>結果
+              <select id="result" required>
+                <option value="win">Win</option>
+                <option value="loss">Loss</option>
+              </select>
+            </label>
+            <label>先行/後攻
+              <select id="turnOrder" required>
+                <option value="first">先行</option>
+                <option value="second">後攻</option>
+              </select>
+            </label>
+            <label>先行決定（方法）
+              <select id="initiativeMethod">
+                <option value="coin">コイントス</option>
+                <option value="dice">ダイス</option>
+                <option value="choice">じゃんけん/選択</option>
+                <option value="other">その他</option>
+              </select>
+            </label>
+            <label>先行決定（指標値）<input type="text" id="initiativeValue" /></label>
+
+            <label>自分デッキ（選択）
+              <select id="myDeckId"></select>
+            </label>
+            <label>自分デッキ名（自由入力）<input type="text" id="myDeckName" maxlength="60" required /></label>
+            <label>相手デッキ名<input type="text" id="opDeckName" maxlength="60" required /></label>
+            <label>ポイント<input type="number" id="pointsValue" min="0" step="1" /></label>
+            <label>ポイント備考<input type="text" id="pointsNote" /></label>
+            <label>レート<input type="number" id="rate" min="0" step="1" /></label>
+            <label>タグ<div id="match-tags" class="chip-input" data-allow-new="true"></div></label>
+            <label>メモ<textarea id="note" rows="2"></textarea></label>
+          </div>
+          <div class="actions">
+            <button type="submit">追加</button>
+            <button type="button" id="reset-form">リセット</button>
+          </div>
+        </form>
+        <div id="recent-matches" class="panel"></div>
+      </section>
+
+      <section id="view-decks" class="view">
+        <h2>デッキ管理</h2>
+        <form id="deck-form" class="row">
+          <input type="text" id="deck-name" placeholder="デッキ名" maxlength="60" required />
+          <input type="color" id="deck-color" />
+          <input type="text" id="deck-tags" placeholder="タグ(カンマ区切り)" />
+          <input type="text" id="deck-note" placeholder="メモ" />
+          <label><input type="checkbox" id="deck-fav" />★お気に入り</label>
+          <button type="submit">追加</button>
+        </form>
+        <div class="actions">
+          <button id="export-decks">デッキをエクスポート</button>
+          <label class="file-btn">インポート<input type="file" id="import-decks" accept="application/json" /></label>
+        </div>
+        <ul id="deck-list" class="list"></ul>
+      </section>
+
+      <section id="view-tags" class="view">
+        <h2>タグ管理</h2>
+        <form id="tag-form" class="row">
+          <input type="text" id="tag-name" placeholder="タグ名" maxlength="40" required />
+          <input type="color" id="tag-color" />
+          <input type="text" id="tag-desc" placeholder="説明(任意)" />
+          <button type="submit">追加</button>
+        </form>
+        <ul id="tag-list" class="list"></ul>
+      </section>
+
+      <section id="view-projects" class="view">
+        <h2>プロジェクト</h2>
+        <form id="project-form" class="row">
+          <input type="text" id="project-name" placeholder="名称" required />
+          <input type="date" id="project-start" />
+          <input type="date" id="project-end" />
+          <input type="text" id="project-desc" placeholder="説明(任意)" />
+          <button type="submit">追加</button>
+        </form>
+        <ul id="project-list" class="list"></ul>
+      </section>
+
+      <section id="view-settings" class="view">
+        <h2>設定・バックアップ</h2>
+        <div class="panel">
+          <div class="row">
+            <button id="export-all">全体エクスポート</button>
+            <button id="export-project">プロジェクト単体エクスポート</button>
+            <label class="file-btn">インポート<input type="file" id="import-all" accept="application/json" /></label>
+          </div>
+          <div class="row">
+            <label>タイムゾーン/表示形式はブラウザ設定に依存（簡易）。</label>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <small>ローカル動作・外部送信なし | v0.3-proto</small>
+    </footer>
+
+    <script type="module" src="src/app.js"></script>
+  </body>
+</html>
+

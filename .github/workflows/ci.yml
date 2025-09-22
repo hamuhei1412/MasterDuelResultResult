@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  static-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure key files exist
+        run: |
+          set -euo pipefail
+          test -f index.html
+          test -f styles.css
+          test -f sw.js
+          test -f src/app.js
+          test -f src/db.js
+          test -f src/ui.js
+          test -f src/stats.js
+      - name: Enforce no external network refs
+        run: |
+          set -euo pipefail
+          if grep -RIEn "https?://" --exclude-dir=.git --exclude="*.md" .; then
+            echo "External URLs detected. Use local assets only." >&2
+            exit 1
+          fi
+      - name: Check CSP meta tag present
+        run: |
+          set -euo pipefail
+          grep -E "Content-Security-Policy" index.html
+
