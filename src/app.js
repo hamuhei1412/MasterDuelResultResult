@@ -144,12 +144,14 @@ function renderMatchFormDecks(){
   for (const d of state.decks){
     sel.appendChild(el('option', { value:d.id }, d.name));
   }
+  if (!sel.value && state.decks.length===1) sel.value = state.decks[0].id;
   const opSel = $('#opDeckNameSel');
   if (opSel){
     opSel.innerHTML = '<option value="">（未選択）</option>';
     for (const d of state.decks){
       opSel.appendChild(el('option', { value:d.name }, d.name));
     }
+    if (!opSel.value && state.decks.length===1) opSel.value = state.decks[0].name;
   }
 }
 
