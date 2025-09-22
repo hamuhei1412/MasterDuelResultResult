@@ -16,7 +16,8 @@ main{padding:12px}
 .kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
 .kpi .card{background:#111624;border:1px solid var(--border);border-radius:10px;padding:10px}
 label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
-input,select,textarea{background:#0f1320;color:var(--fg);border:1px solid var(--border);border-radius:8px;padding:8px}
+input,select,textarea{background:#0f1320;color:var(--fg);border:1px solid var(--border);border-radius:8px;padding:8px;width:100%}
+.grid label select{min-height:36px}
 button{background:#243055;border:1px solid var(--border);color:var(--fg);padding:8px 12px;border-radius:8px;cursor:pointer}
 button:hover{filter:brightness(1.1)}
 .actions{margin-top:10px;display:flex;gap:8px}
