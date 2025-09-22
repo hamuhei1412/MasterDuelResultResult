@@ -13,6 +13,7 @@ main{padding:12px}
 .row{display:flex;gap:8px;flex-wrap:wrap}
 .panel{border:1px solid var(--border);background:var(--panel);border-radius:10px;padding:10px;margin-top:10px}
 .panel h3{margin:4px 0 8px 0;font-size:14px;color:var(--muted)}
+.chart-tooltip{position:absolute;pointer-events:none;background:#0b0f1a;color:#fff;border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;box-shadow:0 4px 16px rgba(0,0,0,0.35);display:none}
 .kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
 .kpi .card{background:#111624;border:1px solid var(--border);border-radius:10px;padding:10px}
 label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
@@ -21,6 +22,9 @@ input,select,textarea{background:#0f1320;color:var(--fg);border:1px solid var(--
 button{background:#243055;border:1px solid var(--border);color:var(--fg);padding:8px 12px;border-radius:8px;cursor:pointer}
 button:hover{filter:brightness(1.1)}
 .actions{margin-top:10px;display:flex;gap:8px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{background:#1a2033;border:1px solid var(--border);color:var(--fg);padding:6px 10px;border-radius:999px;cursor:pointer}
+.seg button.active{background:var(--accent);color:#0a0c14;border-color:var(--accent)}
 .list{list-style:none;padding:0;margin:8px 0}
 .list li{display:flex;align-items:center;justify-content:space-between;padding:8px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:#0f1320}
 .matrix{width:100%;border-collapse:separate;border-spacing:2px}
@@ -42,3 +46,10 @@ button:hover{filter:brightness(1.1)}
 .muted{color:var(--muted)}
 .good{color:var(--win)}.bad{color:var(--loss)}
 footer{padding:12px;border-top:1px solid var(--border);color:var(--muted)}
+
+/* Modal */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000}
+.modal.hidden{display:none}
+.modal .dialog{width:min(720px,92vw);max-height:90vh;overflow:auto;background:#0f1320;border:1px solid var(--border);border-radius:10px;padding:12px}
+.modal .dialog h3{margin:0 0 8px 0}
+.modal .actions{justify-content:flex-end}

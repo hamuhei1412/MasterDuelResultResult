@@ -185,3 +185,36 @@ export async function listDecks() { return getAll('decks'); }
 export async function listTags() { return getAll('tags'); }
 export async function listProjects() { return getAll('projects'); }
 
+export async function getMatch(id){
+  const db = await openDB();
+  const tx = db.transaction(['matches'], 'readonly');
+  const store = tx.objectStore('matches');
+  return new Promise((res,rej)=>{ const r = store.get(id); r.onsuccess=()=>res(r.result||null); r.onerror=()=>rej(r.error); });
+}
+
+export async function updateMatch(id, updates){
+  const db = await openDB();
+  const tx = db.transaction(['matches'], 'readwrite');
+  const store = tx.objectStore('matches');
+  const old = await new Promise((res,rej)=>{ const r = store.get(id); r.onsuccess=()=>res(r.result||null); r.onerror=()=>rej(r.error); });
+  if (!old) throw new Error('match not found');
+  const merged = withTagsFlat({ ...old, ...updates, id, updatedAt: nowIso() });
+  await new Promise((res,rej)=>{ const r = store.put(merged); r.onsuccess=()=>res(true); r.onerror=()=>rej(r.error); });
+  return true;
+}
+
+export async function setMatchDeleted(id, deleted){
+  const db = await openDB();
+  const tx = db.transaction(['matches'], 'readwrite');
+  const store = tx.objectStore('matches');
+  const old = await new Promise((res,rej)=>{ const r = store.get(id); r.onsuccess=()=>res(r.result||null); r.onerror=()=>rej(r.error); });
+  if (!old) return false;
+  old.deleted = !!deleted; old.updatedAt = nowIso();
+  await new Promise((res,rej)=>{ const r = store.put(old); r.onsuccess=()=>res(true); r.onerror=()=>rej(r.error); });
+  return true;
+}
+
+export async function listAllMatchesByProject(projectId){
+  const all = await getAll('matches');
+  return all.filter(m => m.projectId === projectId).sort((a,b)=> (a.playedAt||'').localeCompare(b.playedAt||''));
+}

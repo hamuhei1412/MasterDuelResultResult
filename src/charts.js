@@ -1,49 +1,208 @@
-// Lightweight canvas line chart (no deps)
+// Pretty line chart with axes, grid, tooltip, smoothing (no deps)
 
-export function drawLineChart(canvas, points, { padding=24, color='#7aa2f7', grid='#273048', axis='#99a0b0' }={}){
+export function ensureLineChart(canvas, points, options={}){
   if (!canvas) return;
-  const dpr = window.devicePixelRatio || 1;
-  const w = canvas.clientWidth || 600;
-  const h = canvas.clientHeight || 200;
-  canvas.width = Math.round(w * dpr);
-  canvas.height = Math.round(h * dpr);
-  const ctx = canvas.getContext('2d');
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0,0,w,h);
-
-  if (!points || points.length===0) {
-    ctx.fillStyle = axis; ctx.font = '12px sans-serif'; ctx.fillText('データなし', 10, 20); return;
-  }
-
-  const x0 = padding, y0 = padding, x1 = w - padding, y1 = h - padding;
-  const xs = points.map(p=>p.x), ys = points.map(p=>p.y);
-  const minX = Math.min(...xs), maxX = Math.max(...xs);
-  const minY = Math.min(...ys), maxY = Math.max(...ys);
-  const dx = (maxX - minX) || 1;
-  const dy = (maxY - minY) || 1;
-
-  // grid
-  ctx.strokeStyle = grid; ctx.lineWidth = 1;
-  for (let i=0;i<=4;i++){
-    const yy = y0 + (y1-y0)*(i/4);
-    line(ctx, x0, yy, x1, yy);
-  }
-
-  // axes labels (min/max)
-  ctx.fillStyle = axis; ctx.font = '12px sans-serif';
-  ctx.fillText(String(minY), 4, y1);
-  ctx.fillText(String(maxY), 4, y0+8);
-
-  // path
-  ctx.strokeStyle = color; ctx.lineWidth = 2;
-  ctx.beginPath();
-  points.forEach((p,i)=>{
-    const x = x0 + (x1-x0)*((p.x - minX)/dx);
-    const y = y1 - (y1-y0)*((p.y - minY)/dy);
-    if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-  });
-  ctx.stroke();
+  if (!canvas.__lc) canvas.__lc = new LineChart(canvas, options);
+  canvas.__lc.update(points, options);
 }
 
-function line(ctx,x1,y1,x2,y2){ ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); }
+class LineChart{
+  constructor(canvas, options){
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.points = [];
+    this.opts = options;
+    this.padding = 36;
+    this.hover = null;
+    this.tooltip = makeTooltip(canvas);
+    this._onMove = this.onMove.bind(this);
+    this._onLeave = this.onLeave.bind(this);
+    canvas.addEventListener('mousemove', this._onMove);
+    canvas.addEventListener('mouseleave', this._onLeave);
+    this.ro = new ResizeObserver(()=> this.draw());
+    this.ro.observe(canvas);
+  }
+  update(points, options={}){
+    this.points = Array.isArray(points)? points.slice() : [];
+    this.opts = { color:'#7aa2f7', grid:'#273048', axis:'#99a0b0', area:'rgba(122,162,247,0.15)', ...options };
+    this.draw();
+  }
+  setSize(){
+    const dpr = window.devicePixelRatio || 1;
+    const w = this.canvas.clientWidth || 600;
+    const h = this.canvas.clientHeight || 220;
+    this.canvas.width = Math.round(w * dpr);
+    this.canvas.height = Math.round(h * dpr);
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.w = w; this.h = h;
+  }
+  draw(){
+    this.setSize();
+    const { ctx, w, h, padding:pad } = this;
+    ctx.clearRect(0,0,w,h);
+    ctx.save();
+    const points = this.points;
+    const { axis, grid, color, area } = this.opts;
+    if (!points.length){
+      ctx.fillStyle = axis; ctx.font = '12px system-ui, sans-serif'; ctx.fillText('データなし', 10, 20); ctx.restore(); return;
+    }
+    const x0 = pad+24, y0 = pad, x1 = w - pad, y1 = h - pad;
+    const xs = points.map(p=>p.x), ys = points.map(p=>p.y);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const [minY, maxY] = paddedRange(Math.min(...ys), Math.max(...ys));
+    const dx = (maxX - minX) || 1; const dy = (maxY - minY) || 1;
+    const xMap = (x)=> x0 + (x1-x0) * ((x - minX)/dx);
+    const yMap = (y)=> y1 - (y1-y0) * ((y - minY)/dy);
 
+    // grid + axes
+    ctx.strokeStyle = grid; ctx.lineWidth = 1;
+    const yTicks = niceTicks(minY, maxY, 5);
+    for(const t of yTicks){ const yy = yMap(t); line(ctx, x0, yy, x1, yy); }
+    ctx.strokeStyle = axis; line(ctx, x0, y0, x0, y1); line(ctx, x0, y1, x1, y1);
+    ctx.fillStyle = axis; ctx.font = '11px system-ui, sans-serif'; ctx.textAlign='right'; ctx.textBaseline='middle';
+    for(const t of yTicks){ const yy = yMap(t); ctx.fillText(String(t), x0-6, yy); }
+    // x ticks
+    ctx.textAlign='center'; ctx.textBaseline='top';
+    const xTicks = timeTicks(minX, maxX, 5);
+    for(const t of xTicks){ const xx = xMap(t); ctx.fillText(fmtTime(t, minX, maxX), xx, y1+4); ctx.strokeStyle = grid; line(ctx, xx, y0, xx, y1); }
+
+    // smoothed path
+    const path = smoothedPath(points.map(p=>({ x:xMap(p.x), y:yMap(p.y) })));
+    // area under line
+    if (area){
+      ctx.fillStyle = area;
+      ctx.beginPath();
+      pathTo(ctx, path);
+      ctx.lineTo(path[path.length-1].x, y1);
+      ctx.lineTo(path[0].x, y1);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // line
+    const grad = ctx.createLinearGradient(0,y0,0,y1);
+    grad.addColorStop(0, color); grad.addColorStop(1, color);
+    ctx.strokeStyle = grad; ctx.lineWidth = 2;
+    ctx.beginPath(); pathTo(ctx, path); ctx.stroke();
+
+    // points (for small N)
+    if (points.length <= 40){
+      ctx.fillStyle = color; for(const p of path){ dot(ctx, p.x, p.y, 2.5); }
+    }
+
+    // hover marker
+    if (this.hover){
+      const i = nearestIndex(points, this.hover.x, (v)=>xMap(v));
+      if (i>=0){
+        const px = xMap(points[i].x), py = yMap(points[i].y);
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)'; line(ctx, px, y0, px, y1);
+        ctx.fillStyle = '#fff'; dot(ctx, px, py, 3.5);
+        this.tooltip.show(px, y0+8, fmtTooltip(points[i]));
+      }
+    } else {
+      this.tooltip.hide();
+    }
+    ctx.restore();
+  }
+  onMove(e){
+    const rect = this.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+    this.hover = { x, y }; this.draw();
+  }
+  onLeave(){ this.hover = null; this.draw(); }
+}
+
+function makeTooltip(canvas){
+  let el = canvas.parentElement.querySelector('.chart-tooltip');
+  if (!el){
+    el = document.createElement('div');
+    el.className = 'chart-tooltip';
+    canvas.parentElement.appendChild(el);
+  }
+  return {
+    show(x, y, html){ el.innerHTML = html; el.style.display='block'; el.style.left = Math.round(x+12)+'px'; el.style.top = Math.round(y+8)+'px'; },
+    hide(){ el.style.display='none'; }
+  };
+}
+
+function nearestIndex(points, x, mapX){
+  if (!points.length) return -1;
+  let best=0, bestD=Infinity;
+  for (let i=0;i<points.length;i++){
+    const dx = Math.abs(mapX(points[i].x)-x);
+    if (dx<bestD){ best=i; bestD=dx; }
+  }
+  return best;
+}
+
+function paddedRange(minY, maxY){
+  if (!isFinite(minY) || !isFinite(maxY)) return [0, 1];
+  if (minY===maxY){ const pad = Math.max(1, Math.abs(minY)*0.1); return [minY-pad, maxY+pad]; }
+  const r = maxY - minY; const pad = r*0.1; return [Math.floor(minY-pad), Math.ceil(maxY+pad)];
+}
+function niceTicks(min, max, count){
+  const span = max-min; if (span<=0) return [min];
+  const step = niceStep(span/(count||5));
+  const start = Math.ceil(min/step)*step;
+  const ticks = [];
+  for(let v=start; v<=max+1e-9; v+=step){ ticks.push(roundNice(v)); }
+  return ticks;
+}
+function niceStep(raw){
+  const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+  const n = raw / pow;
+  if (n<1.5) return 1*pow;
+  if (n<3) return 2*pow;
+  if (n<7) return 5*pow;
+  return 10*pow;
+}
+function roundNice(v){ return Math.round(v*100)/100; }
+function timeTicks(minX, maxX, count){
+  if (maxX<=minX) return [minX];
+  const span = maxX-minX; const step = Math.round(span/(count||5));
+  const ticks = [];
+  for(let t=minX; t<=maxX+1; t+=step){ ticks.push(t); }
+  return ticks;
+}
+function fmtTime(x, minX, maxX){
+  const d = new Date(x);
+  const daySpan = (maxX-minX)/(1000*60*60*24);
+  if (daySpan <= 2) return `${pad2(d.getMonth()+1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  return `${d.getFullYear()}/${pad2(d.getMonth()+1)}/${pad2(d.getDate())}`;
+}
+function fmtTooltip(p){
+  const d = new Date(p.x);
+  return `${d.getFullYear()}/${pad2(d.getMonth()+1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}<br/><b>${p.y}</b>`;
+}
+function pad2(n){ return n<10? '0'+n : String(n); }
+
+function smoothedPath(pts){
+  if (pts.length<=2) return pts;
+  // Monotone cubic interpolation
+  const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
+  const ms = [];
+  for(let i=0;i<xs.length-1;i++) ms.push( (ys[i+1]-ys[i])/(xs[i+1]-xs[i] || 1) );
+  const ds = [ms[0], ...ms, ms[ms.length-1]];
+  const cps = [];
+  for(let i=0;i<xs.length;i++){
+    const m = i===0? ms[0] : (i===ms.length? ms[ms.length-1] : (ms[i-1]+ms[i])/2);
+    const prevX = xs[i-1]??xs[i], nextX = xs[i+1]??xs[i];
+    const dx = (nextX - prevX)/6;
+    cps.push({
+      x: xs[i], y: ys[i],
+      c1x: xs[i]-dx, c1y: ys[i]-m*dx,
+      c2x: xs[i]+dx, c2y: ys[i]+m*dx
+    });
+  }
+  // build path points as bezier segments endpoints
+  const path = cps.map(p=>({x:p.x,y:p.y,c1x:p.c1x,c1y:p.c1y,c2x:p.c2x,c2y:p.c2y}));
+  return path;
+}
+function pathTo(ctx, path){
+  for(let i=0;i<path.length;i++){
+    const p = path[i];
+    if (i===0) ctx.moveTo(p.x, p.y);
+    else ctx.bezierCurveTo(path[i-1].c2x, path[i-1].c2y, p.c1x, p.c1y, p.x, p.y);
+  }
+}
+function line(ctx,x1,y1,x2,y2){ ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); }
+function dot(ctx,x,y,r){ ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); }

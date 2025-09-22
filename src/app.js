@@ -2,10 +2,10 @@ import { $, $all, el, mount, chipInput, formatPct } from './ui.js';
 import {
   openDB, listProjects, addProject, listDecks, addDeck, listTags, addTag,
   addMatch, listMatchesByProject, exportAll, exportProject, exportDecksOnly,
-  importJSON
+  importJSON, getMatch, updateMatch, setMatchDeleted, listAllMatchesByProject
 } from './db.js';
 import { kpis, tagStats, filterByTags, rateSeries, matchupMatrix } from './stats.js';
-import { drawLineChart } from './charts.js';
+import { ensureLineChart } from './charts.js';
 
 // App state
 const state = {
@@ -27,6 +27,7 @@ window.addEventListener('load', async () => {
   initTagUI();
   initProjectUI();
   initSettingsUI();
+  initHistoryUI();
   restoreActiveProject();
   await renderDashboard();
 });
@@ -39,6 +40,10 @@ function bindNav(){
       const view = btn.getAttribute('data-view');
       $all('.view').forEach(v=>v.classList.remove('visible'));
       $(`#view-${view}`).classList.add('visible');
+      if (view==='match') {
+        // 対戦入力を開くたびに現在時刻を初期セット
+        const dt = $('#playedAt'); if (dt) dt.value = new Date().toISOString().slice(0,16);
+      }
     });
   });
 }
@@ -68,6 +73,7 @@ function setActiveProject(id){
   $('#project-period').textContent = proj?.period ? `期間: ${proj.period.start||''} ~ ${proj.period.end||''}` : '';
   renderMatchFormDecks();
   renderRecentMatches();
+  renderHistory();
   renderDashboard();
 }
 
@@ -93,28 +99,36 @@ let matchTagsCtl, filterTagsCtl;
 function initMatchForm(){
   $('#playedAt').value = new Date().toISOString().slice(0,16);
   matchTagsCtl = chipInput($('#match-tags'), { allowNew: false, suggestions: state.tags.map(t=>t.name) });
+  // segmented buttons
+  bindSeg('result-group');
+  bindSeg('turn-group');
+  bindSeg('coin-group');
   const form = $('#match-form');
   $('#reset-form').addEventListener('click', ()=> form.reset());
   form.addEventListener('submit', async (e)=>{
     e.preventDefault();
     if (!state.activeProjectId) { alert('プロジェクトを選択してください'); return; }
     const playedAt = new Date($('#playedAt').value).toISOString();
-    const result = $('#result').value;
-    const turnOrder = $('#turnOrder').value;
+    const result = segValue('result-group');
+    const turnOrder = segValue('turn-group');
     const method = 'coin';
-    const value = $('#coinResult').value || null;
+    const value = segValue('coin-group');
     const rate = $('#rate').value ? Number($('#rate').value) : null;
-    const myDeckId = $('#myDeckId').value || null;
+    const myDeckSel = $('#myDeckId');
+    const myDeckId = myDeckSel ? (myDeckSel.value || null) : null;
     const myDeck = state.decks.find(d=>d.id===myDeckId);
     const myDeckName = myDeck ? myDeck.name : '';
-    const opDeckName = $('#opDeckNameSel').value || '';
+    const opSel = $('#opDeckNameSel');
+    const opDeckName = opSel ? (opSel.value || '') : (($('#opDeckName')?.value||'').trim());
     const note = $('#note').value || null;
 
     // Validation per spec
+    if (!result) { alert('結果を選択してください'); return; }
+    if (!turnOrder) { alert('先行/後攻を選択してください'); return; }
+    if (!value) { alert('コイントス結果を選択してください'); return; }
     if (!myDeckId) { alert('自分デッキを選択してください'); return; }
     if (!opDeckName || opDeckName.length>60) { alert('相手デッキを選択してください'); return; }
     if (rate!=null && rate<0) { alert('レートは0以上'); return; }
-    
 
     const tagNames = matchTagsCtl.get();
     const tags = tagNames.map(n=>({ tagId: (state.tags.find(t=>t.name===n)?.id)||null, tagName:n }));
@@ -133,8 +147,15 @@ function initMatchForm(){
     });
     form.reset();
     $('#playedAt').value = new Date().toISOString().slice(0,16);
+    clearSeg('result-group');
+    clearSeg('turn-group');
+    clearSeg('coin-group');
     await renderRecentMatches();
     await renderDashboard();
+  });
+  // store last deck
+  $('#myDeckId').addEventListener('change', ()=>{
+    try { localStorage.setItem('lastMyDeckId', $('#myDeckId').value||''); } catch(_e){}
   });
 }
 
@@ -144,7 +165,9 @@ function renderMatchFormDecks(){
   for (const d of state.decks){
     sel.appendChild(el('option', { value:d.id }, d.name));
   }
-  if (!sel.value && state.decks.length===1) sel.value = state.decks[0].id;
+  const last = localStorage.getItem('lastMyDeckId');
+  if (last && state.decks.some(d=>d.id===last)) sel.value = last;
+  else if (!sel.value && state.decks.length===1) sel.value = state.decks[0].id;
   const opSel = $('#opDeckNameSel');
   if (opSel){
     opSel.innerHTML = '<option value="">（未選択）</option>';
@@ -155,13 +178,28 @@ function renderMatchFormDecks(){
   }
 }
 
+// segmented helpers
+function bindSeg(id){
+  const root = document.getElementById(id); if (!root) return;
+  $all('button', root).forEach(btn => btn.addEventListener('click', ()=>{
+    $all('button', root).forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+  }));
+}
+function segValue(id){ const a = document.querySelector(`#${id} button.active`); return a ? a.getAttribute('data-value') : null; }
+function clearSeg(id){ $all(`#${id} button`).forEach(b=>b.classList.remove('active')); }
+
 async function renderRecentMatches(){
   if (!state.activeProjectId) { mount($('#recent-matches'), el('div',{},'プロジェクト未選択')); return; }
   const list = await listMatchesByProject(state.activeProjectId);
   const items = list.slice(-10).reverse().map(m => el('li',{},
     el('div',{}, `${m.playedAt?.slice(0,16)||''} / ${m.turnOrder==='first'?'先行':'後攻'} / ${m.result==='win'?'Win':'Loss'}`),
     el('div',{}, `${m.myDeckName} vs ${m.opDeckName}`),
-    el('div',{}, ...(m.tags||[]).map(t=> el('span',{class:'pill'}, el('span',{class:'dot',style:`background:${pickTagColor(t.tagName)}`}),'#'+t.tagName)))
+    el('div',{}, ...(m.tags||[]).map(t=> el('span',{class:'pill'}, el('span',{class:'dot',style:`background:${pickTagColor(t.tagName)}`}),'#'+t.tagName))),
+    el('div',{}, 
+      el('button',{onclick:()=> openEditMatch(m.id)},'編集'),
+      el('button',{onclick:()=> toggleDeleteMatch(m)}, m.deleted? '復元' : '削除')
+    )
   ));
   mount($('#recent-matches'), el('div',{class:'panel'}, el('ul',{class:'list'}, ...items)));
 }
@@ -189,7 +227,7 @@ async function renderDashboard(){
 
   // Rate line chart
   const series = rateSeries(filtered);
-  drawLineChart($('#rate-canvas'), series);
+  ensureLineChart($('#rate-canvas'), series);
 
   // Matchup matrix
   const mx = matchupMatrix(filtered);
@@ -211,7 +249,9 @@ async function renderDashboard(){
     });
     tbl.appendChild(trEl);
   });
-  mount($('#matchup-table'), tbl);
+  const legend = el('div', { class:'muted', style:'margin-top:6px;' }, '勝率レジェンド: ', gradientLegend());
+  const cont = el('div',{}, tbl, legend);
+  mount($('#matchup-table'), cont);
 
   // Tag stats table
   const rows = tagStats(filtered);
@@ -240,11 +280,15 @@ function tr(kind, ...cells){
 function heatColor(pct){
   if (pct==null) return '#1a2033';
   const t = Math.max(0, Math.min(100, pct)) / 100; // 0..1
-  // red -> yellow -> green
-  const r = t < 0.5 ? 255 : Math.round(255*(1 - (t-0.5)*2));
-  const g = t < 0.5 ? Math.round(255*(t*2)) : 255;
-  const b = 80;
-  return `rgb(${r},${g},${b})`;
+  // HSL: 0 (red) -> 60 (yellow) -> 120 (green)
+  const h = 120 * t; const s = 70; const l = 40;
+  return hsl(h,s,l);
+}
+function hsl(h,s,l){ return `hsl(${h} ${s}% ${l}%)`; }
+function gradientLegend(){
+  const bar = el('div',{style:'height:10px;background:linear-gradient(90deg, hsl(0 70% 40%), hsl(60 70% 40%), hsl(120 70% 40%));border-radius:6px;margin:4px 0'});
+  const row = el('div',{class:'row', style:'justify-content:space-between;font-size:12px'}, el('span',{},'0%'), el('span',{},'50%'), el('span',{},'100%'));
+  return el('div',{}, bar, row);
 }
 
 // Deck UI
@@ -455,4 +499,106 @@ function registerSW(){
   if ('serviceWorker' in navigator){
     try { navigator.serviceWorker.register('sw.js'); } catch(_e) {}
   }
+}
+// History view
+function initHistoryUI(){
+  $('#reload-history').addEventListener('click', renderHistory);
+}
+
+async function renderHistory(){
+  if (!state.activeProjectId) { mount($('#history-list'), el('div',{},'プロジェクト未選択')); return; }
+  const list = await listAllMatchesByProject(state.activeProjectId);
+  const items = list.slice().reverse().map(m => el('li',{},
+    el('div',{}, `${m.playedAt?.slice(0,16)||''} / ${m.turnOrder==='first'?'先行':'後攻'} / ${m.result==='win'?'Win':'Loss'} ${m.deleted?'[削除]':''}`),
+    el('div',{}, `${m.myDeckName} vs ${m.opDeckName}`),
+    el('div',{}, ...(m.tags||[]).map(t=> el('span',{class:'pill'}, el('span',{class:'dot',style:`background:${pickTagColor(t.tagName)}`}),'#'+t.tagName))),
+    el('div',{}, 
+      el('button',{onclick:()=> openEditMatch(m.id)},'編集'),
+      el('button',{onclick:()=> toggleDeleteMatch(m)}, m.deleted? '復元' : '削除')
+    )
+  ));
+  mount($('#history-list'), el('div',{class:'panel'}, el('ul',{class:'list'}, ...items)));
+}
+
+async function toggleDeleteMatch(m){
+  await setMatchDeleted(m.id, !m.deleted);
+  await renderRecentMatches();
+  await renderHistory();
+  await renderDashboard();
+}
+
+async function openEditMatch(matchId){
+  const m = await getMatch(matchId);
+  if (!m) { alert('レコードが見つかりません'); return; }
+  const modal = $('#modal');
+  modal.classList.remove('hidden');
+  const dlg = el('div',{class:'dialog'},
+    el('h3',{},'対戦を編集'),
+    el('form',{id:'edit-form'},
+      el('div',{class:'grid'},
+        el('label',{},'日時', el('input',{type:'datetime-local', id:'e_playedAt', value:(m.playedAt? new Date(m.playedAt).toISOString().slice(0,16) : new Date().toISOString().slice(0,16))})),
+        el('label',{},'結果', sel('e_result', ['win','loss'], m.result)),
+        el('label',{},'先行/後攻', sel('e_turnOrder', ['first','second'], m.turnOrder)),
+        el('label',{},'コイントス結果', sel('e_coin', ['heads','tails'], typeof m.initiative?.value==='string'? m.initiative.value : 'heads')),
+        el('label',{},'自分デッキ', deckSelect('e_myDeck', state.decks, m.myDeckId)),
+        el('label',{},'相手デッキ', opDeckSelect('e_opDeck', state.decks, m.opDeckName)),
+        el('label',{},'レート', el('input',{type:'number', id:'e_rate', min:'0', step:'1', value: m.rate ?? ''})),
+        el('label',{},'タグ', el('div',{id:'e_tags', class:'chip-input', 'data-allow-new':'false'})),
+        el('label',{},'メモ', el('textarea',{id:'e_note', rows:'2'}, m.note||''))
+      ),
+      el('div',{class:'actions'},
+        el('button',{type:'submit'},'保存'),
+        el('button',{type:'button', onclick: closeModal},'キャンセル')
+      )
+    )
+  );
+  mount(modal, dlg);
+  const tagsCtl = chipInput($('#e_tags'), { allowNew:false, suggestions: state.tags.map(t=>t.name) });
+  tagsCtl.set((m.tags||[]).map(t=>t.tagName));
+  $('#edit-form').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const playedAt = new Date($('#e_playedAt').value).toISOString();
+    const result = $('#e_result').value;
+    const turnOrder = $('#e_turnOrder').value;
+    const initiative = { method:'coin', value: $('#e_coin').value };
+    const myDeckId = $('#e_myDeck').value || null;
+    const myDeck = state.decks.find(d=>d.id===myDeckId);
+    if (!myDeck) { alert('自分デッキを選択してください'); return; }
+    const myDeckName = myDeck.name;
+    const opDeckName = $('#e_opDeck').value || '';
+    if (!opDeckName) { alert('相手デッキを選択してください'); return; }
+    const rate = $('#e_rate').value ? Number($('#e_rate').value) : null;
+    if (rate!=null && rate<0) { alert('レートは0以上'); return; }
+    const tags = tagsCtl.get().map(n=>({ tagId: (state.tags.find(t=>t.name===n)?.id)||null, tagName:n }));
+    const note = $('#e_note').value || null;
+    await updateMatch(m.id, { playedAt, result, turnOrder, initiative, myDeckId, myDeckName, opDeckName, rate, tags, note });
+    closeModal();
+    await renderRecentMatches();
+    await renderHistory();
+    await renderDashboard();
+  });
+}
+
+function sel(id, values, selected){
+  const s = el('select',{id});
+  for (const v of values){ s.appendChild(el('option',{value:v, selected: v===selected? 'selected': null}, v)); }
+  return s;
+}
+function deckSelect(id, decks, selectedId){
+  const s = el('select',{id, required:''});
+  s.appendChild(el('option',{value:''}, '（未選択）'));
+  for (const d of decks){ s.appendChild(el('option',{value:d.id, selected: d.id===selectedId? 'selected': null}, d.name)); }
+  return s;
+}
+function opDeckSelect(id, decks, selectedName){
+  const s = el('select',{id, required:''});
+  s.appendChild(el('option',{value:''}, '（未選択）'));
+  for (const d of decks){ s.appendChild(el('option',{value:d.name, selected: d.name===selectedName? 'selected': null}, d.name)); }
+  return s;
+}
+
+function closeModal(){
+  const modal = $('#modal');
+  modal.classList.add('hidden');
+  modal.innerHTML = '';
 }
