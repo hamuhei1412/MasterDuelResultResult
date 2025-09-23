@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Master Duel 戦績トラッカー (ローカル)</title>
+    <title>Master Duel 戦績トラッカー</title>
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" />
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="styles.css" />
@@ -108,7 +108,7 @@
         <form id="deck-form" class="row">
           <input type="text" id="deck-name" placeholder="デッキ名" maxlength="60" required />
           <input type="color" id="deck-color" />
-          <input type="text" id="deck-tags" placeholder="タグ(カンマ区切り)" />
+          <input type="text" id="deck-tags" placeholder="タグ: カンマ区切り" />
           <input type="text" id="deck-note" placeholder="メモ" />
           <label><input type="checkbox" id="deck-fav" />★お気に入り</label>
           <button type="submit">追加</button>
@@ -125,7 +125,7 @@
         <form id="tag-form" class="row">
           <input type="text" id="tag-name" placeholder="タグ名" maxlength="40" required />
           <input type="color" id="tag-color" />
-          <input type="text" id="tag-desc" placeholder="説明(任意)" />
+          <input type="text" id="tag-desc" placeholder="説明: 任意" />
           <button type="submit">追加</button>
         </form>
         <ul id="tag-list" class="list"></ul>
@@ -135,9 +135,9 @@
         <h2>プロジェクト</h2>
         <form id="project-form" class="row">
           <input type="text" id="project-name" placeholder="名称" required />
-          <input type="datetime-local" id="project-start" placeholder="開始(JST)" />
-          <input type="datetime-local" id="project-end" placeholder="終了(JST)" />
-          <input type="text" id="project-desc" placeholder="説明(任意)" />
+          <input type="datetime-local" id="project-start" placeholder="開始日時" />
+          <input type="datetime-local" id="project-end" placeholder="終了日時" />
+          <input type="text" id="project-desc" placeholder="説明: 任意" />
           <button type="submit">追加</button>
         </form>
         <ul id="project-list" class="list"></ul>
