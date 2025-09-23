@@ -59,10 +59,10 @@
         <form id="match-form">
           <div class="grid">
             <label>日時<input type="datetime-local" id="playedAt" required /></label>
-            <label>結果
-              <div id="result-group" class="seg" role="group" aria-label="結果">
-                <button type="button" data-value="win">Win</button>
-                <button type="button" data-value="loss">Loss</button>
+            <label>コイントス結果
+              <div id="coin-group" class="seg" role="group" aria-label="コイントス">
+                <button type="button" data-value="heads">表</button>
+                <button type="button" data-value="tails">裏</button>
               </div>
             </label>
             <label>先行/後攻
@@ -71,18 +71,17 @@
                 <button type="button" data-value="second">後攻</button>
               </div>
             </label>
-            <label>コイントス結果
-              <div id="coin-group" class="seg" role="group" aria-label="コイントス">
-                <button type="button" data-value="heads">表</button>
-                <button type="button" data-value="tails">裏</button>
-              </div>
-            </label>
-
             <label>自分デッキ（選択・必須）
               <select id="myDeckId" required></select>
             </label>
             <label>相手デッキ（選択・必須）
               <select id="opDeckNameSel" required></select>
+            </label>
+            <label>結果
+              <div id="result-group" class="seg" role="group" aria-label="結果">
+                <button type="button" data-value="win">Win</button>
+                <button type="button" data-value="loss">Loss</button>
+              </div>
             </label>
             <label>レート<input type="number" id="rate" min="0" step="1" /></label>
             <label>タグ<div id="match-tags" class="chip-input" data-allow-new="false"></div></label>
