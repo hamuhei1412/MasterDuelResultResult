@@ -24,7 +24,7 @@ class LineChart{
   }
   update(points, options={}){
     this.points = Array.isArray(points)? points.slice() : [];
-    this.opts = { color:'#7aa2f7', grid:'#273048', axis:'#99a0b0', area:'rgba(122,162,247,0.15)', ...options };
+    this.opts = { color:'#7aa2f7', grid:'#273048', axis:'#99a0b0', area:'rgba(122,162,247,0.15)', xDomain: null, ...options };
     this.draw();
   }
   setSize(){
@@ -42,14 +42,18 @@ class LineChart{
     ctx.clearRect(0,0,w,h);
     ctx.save();
     const points = this.points;
-    const { axis, grid, color, area } = this.opts;
-    if (!points.length){
-      ctx.fillStyle = axis; ctx.font = '12px system-ui, sans-serif'; ctx.fillText('データなし', 10, 20); ctx.restore(); return;
-    }
+    const { axis, grid, color, area, xDomain } = this.opts;
     const x0 = pad+24, y0 = pad, x1 = w - pad, y1 = h - pad;
     const xs = points.map(p=>p.x), ys = points.map(p=>p.y);
-    const minX = Math.min(...xs), maxX = Math.max(...xs);
-    const [minY, maxY] = paddedRange(Math.min(...ys), Math.max(...ys));
+    let minX, maxX;
+    if (xDomain && isFinite(xDomain[0]) && isFinite(xDomain[1])){
+      minX = Number(xDomain[0]); maxX = Number(xDomain[1]);
+    } else if (points.length){
+      minX = Math.min(...xs); maxX = Math.max(...xs);
+    } else {
+      const now = Date.now(); minX = now; maxX = now + 1;
+    }
+    const [minY, maxY] = points.length ? paddedRange(Math.min(...ys), Math.max(...ys)) : [0,1];
     const dx = (maxX - minX) || 1; const dy = (maxY - minY) || 1;
     const xMap = (x)=> x0 + (x1-x0) * ((x - minX)/dx);
     const yMap = (y)=> y1 - (y1-y0) * ((y - minY)/dy);
@@ -67,38 +71,44 @@ class LineChart{
     for(const t of xTicks){ const xx = xMap(t); ctx.fillText(fmtTime(t, minX, maxX), xx, y1+4); ctx.strokeStyle = grid; line(ctx, xx, y0, xx, y1); }
 
     // smoothed path
-    const path = smoothedPath(points.map(p=>({ x:xMap(p.x), y:yMap(p.y) })));
-    // area under line
-    if (area){
-      ctx.fillStyle = area;
-      ctx.beginPath();
-      pathTo(ctx, path);
-      ctx.lineTo(path[path.length-1].x, y1);
-      ctx.lineTo(path[0].x, y1);
-      ctx.closePath();
-      ctx.fill();
-    }
-    // line
-    const grad = ctx.createLinearGradient(0,y0,0,y1);
-    grad.addColorStop(0, color); grad.addColorStop(1, color);
-    ctx.strokeStyle = grad; ctx.lineWidth = 2;
-    ctx.beginPath(); pathTo(ctx, path); ctx.stroke();
+    if (points.length){
+      const path = smoothedPath(points.map(p=>({ x:xMap(p.x), y:yMap(p.y) })));
+      // area under line
+      if (area){
+        ctx.fillStyle = area;
+        ctx.beginPath();
+        pathTo(ctx, path);
+        ctx.lineTo(path[path.length-1].x, y1);
+        ctx.lineTo(path[0].x, y1);
+        ctx.closePath();
+        ctx.fill();
+      }
+      // line
+      const grad = ctx.createLinearGradient(0,y0,0,y1);
+      grad.addColorStop(0, color); grad.addColorStop(1, color);
+      ctx.strokeStyle = grad; ctx.lineWidth = 2;
+      ctx.beginPath(); pathTo(ctx, path); ctx.stroke();
 
-    // points (for small N)
-    if (points.length <= 40){
-      ctx.fillStyle = color; for(const p of path){ dot(ctx, p.x, p.y, 2.5); }
-    }
+      // points (for small N)
+      if (points.length <= 40){
+        ctx.fillStyle = color; for(const p of path){ dot(ctx, p.x, p.y, 2.5); }
+      }
 
-    // hover marker
-    if (this.hover){
-      const i = nearestIndex(points, this.hover.x, (v)=>xMap(v));
-      if (i>=0){
-        const px = xMap(points[i].x), py = yMap(points[i].y);
-        ctx.strokeStyle = 'rgba(255,255,255,0.25)'; line(ctx, px, y0, px, y1);
-        ctx.fillStyle = '#fff'; dot(ctx, px, py, 3.5);
-        this.tooltip.show(px, y0+8, fmtTooltip(points[i]));
+      // hover marker
+      if (this.hover){
+        const i = nearestIndex(points, this.hover.x, (v)=>xMap(v));
+        if (i>=0){
+          const px = xMap(points[i].x), py = yMap(points[i].y);
+          ctx.strokeStyle = 'rgba(255,255,255,0.25)'; line(ctx, px, y0, px, y1);
+          ctx.fillStyle = '#fff'; dot(ctx, px, py, 3.5);
+          this.tooltip.show(px, y0+8, fmtTooltip(points[i]));
+        }
+      } else {
+        this.tooltip.hide();
       }
     } else {
+      // No data: draw only axes/grid and a note
+      ctx.fillStyle = axis; ctx.font = '12px system-ui, sans-serif'; ctx.fillText('データなし', 10, 20);
       this.tooltip.hide();
     }
     ctx.restore();

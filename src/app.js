@@ -251,7 +251,12 @@ async function renderDashboard(){
   }
 
   const series = rateSeries(graphFiltered);
-  ensureLineChart($('#rate-canvas'), series);
+  let xDomain = null;
+  if (proj?.period && proj.period.start && proj.period.end){
+    const s = Date.parse(proj.period.start); const e = Date.parse(proj.period.end);
+    if (isFinite(s) && isFinite(e) && e>s) xDomain = [s, e];
+  }
+  ensureLineChart($('#rate-canvas'), series, xDomain? { xDomain } : {});
 
   // Matchup matrix
   const mx = matchupMatrix(graphFiltered);
