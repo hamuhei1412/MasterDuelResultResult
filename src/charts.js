@@ -24,7 +24,7 @@ class LineChart{
   }
   update(points, options={}){
     this.points = Array.isArray(points)? points.slice() : [];
-    this.opts = { color:'#7aa2f7', grid:'#273048', axis:'#99a0b0', area:'rgba(122,162,247,0.15)', xDomain: null, ...options };
+    this.opts = { color:'#7aa2f7', grid:'#273048', axis:'#99a0b0', area:'rgba(122,162,247,0.15)', xDomain: null, xMode:'time', ...options };
     this.draw();
   }
   setSize(){
@@ -42,7 +42,7 @@ class LineChart{
     ctx.clearRect(0,0,w,h);
     ctx.save();
     const points = this.points;
-    const { axis, grid, color, area, xDomain } = this.opts;
+    const { axis, grid, color, area, xDomain, xMode } = this.opts;
     const x0 = pad+24, y0 = pad, x1 = w - pad, y1 = h - pad;
     const xs = points.map(p=>p.x), ys = points.map(p=>p.y);
     let minX, maxX;
@@ -67,8 +67,13 @@ class LineChart{
     for(const t of yTicks){ const yy = yMap(t); ctx.fillText(String(t), x0-6, yy); }
     // x ticks
     ctx.textAlign='center'; ctx.textBaseline='top';
-    const xTicks = timeTicks(minX, maxX, 5);
-    for(const t of xTicks){ const xx = xMap(t); ctx.fillText(fmtTime(t, minX, maxX), xx, y1+4); ctx.strokeStyle = grid; line(ctx, xx, y0, xx, y1); }
+    const xTicks = xMode==='count' ? niceTicks(minX, maxX, 5) : timeTicks(minX, maxX, 5);
+    for(const t of xTicks){
+      const xx = xMap(t);
+      const label = xMode==='count' ? String(Math.round(t)) : fmtTime(t, minX, maxX);
+      ctx.fillText(label, xx, y1+4);
+      ctx.strokeStyle = grid; line(ctx, xx, y0, xx, y1);
+    }
 
     // smoothed path
     if (points.length){
@@ -99,9 +104,9 @@ class LineChart{
         const i = nearestIndex(points, this.hover.x, (v)=>xMap(v));
         if (i>=0){
           const px = xMap(points[i].x), py = yMap(points[i].y);
-          ctx.strokeStyle = 'rgba(255,255,255,0.25)'; line(ctx, px, y0, px, y1);
-          ctx.fillStyle = '#fff'; dot(ctx, px, py, 3.5);
-          this.tooltip.show(px, y0+8, fmtTooltip(points[i]));
+          ctx.strokeStyle = 'rgba(0,0,0,0.15)'; line(ctx, px, y0, px, y1);
+          ctx.fillStyle = '#000'; dot(ctx, px, py, 3.5);
+          this.tooltip.show(px, y0+8, xMode==='count'? fmtTooltipCount(points[i]) : fmtTooltip(points[i]));
         }
       } else {
         this.tooltip.hide();
@@ -183,6 +188,7 @@ function fmtTooltip(p){
   const d = new Date(p.x);
   return `${d.getFullYear()}/${pad2(d.getMonth()+1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}<br/><b>${p.y}</b>`;
 }
+function fmtTooltipCount(p){ return `試合 ${p.x}<br/><b>${p.y}</b>`; }
 function pad2(n){ return n<10? '0'+n : String(n); }
 
 function smoothedPath(pts){

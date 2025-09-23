@@ -77,15 +77,13 @@ export function rate(num, den) {
 
 // Rate series: [{x: timestamp(ms), y: rate(number)}]
 export function rateSeries(matches){
-  const series = [];
-  for (const m of matches){
-    if (m.rate==null) continue;
-    const t = Date.parse(m.playedAt || '');
-    if (!isFinite(t)) continue;
-    series.push({ x: t, y: Number(m.rate) });
-  }
-  series.sort((a,b)=>a.x-b.x);
-  return series;
+  // 時系列に並べた上で、横軸は試合番号(1..N)にする
+  const withTime = matches
+    .filter(m => m.rate != null)
+    .map(m => ({ t: Date.parse(m.playedAt || ''), r: Number(m.rate) }))
+    .filter(v => isFinite(v.t));
+  withTime.sort((a,b)=> a.t - b.t);
+  return withTime.map((v, i) => ({ x: i+1, y: v.r }));
 }
 
 // Matchup matrix: rows = myDeckName, cols = opDeckName

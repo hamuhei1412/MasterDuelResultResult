@@ -284,12 +284,8 @@ async function renderDashboard(){
   }
 
   const series = rateSeries(graphFiltered);
-  let xDomain = null;
-  if (proj?.period && proj.period.start && proj.period.end){
-    const s = Date.parse(proj.period.start); const e = Date.parse(proj.period.end);
-    if (isFinite(s) && isFinite(e) && e>s) xDomain = [s, e];
-  }
-  ensureLineChart($('#rate-canvas'), series, xDomain? { xDomain } : {});
+  // 横軸は試合数（1..N）で描画
+  ensureLineChart($('#rate-canvas'), series, { xMode: 'count' });
 
   // Matchup matrix
   const mx = matchupMatrix(graphFiltered);
