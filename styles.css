@@ -33,6 +33,15 @@ button:hover{filter:brightness(1.1)}
 .stats{width:100%;border-collapse:separate;border-spacing:2px}
 .stats th,.stats td{padding:6px 8px;border:1px solid var(--border)}
 .stats th{background:#111624}
+
+/* Recent matches table */
+.table{width:100%;border-collapse:separate;border-spacing:2px}
+.table th,.table td{padding:6px 8px;border:1px solid var(--border);vertical-align:middle}
+.table th{background:#111624}
+.matches tr.win td{background:#132016}
+.matches tr.loss td{background:#201416}
+.matches td.result .good{font-weight:600}
+.matches td.result .bad{font-weight:600}
 .pill{display:inline-flex;align-items:center;gap:6px;background:#20263a;border:1px solid var(--border);border-radius:999px;padding:2px 8px;font-size:12px}
 .pill .dot{width:8px;height:8px;border-radius:50%}
 .pill .del{cursor:pointer;color:#f88}

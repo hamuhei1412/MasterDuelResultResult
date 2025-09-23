@@ -22,12 +22,12 @@
       </nav>
     </header>
 
-    <section id="project-bar">
-      <label>アクティブプロジェクト:</label>
-      <select id="active-project"></select>
-      <button id="create-project">新規作成</button>
-      <span id="project-period"></span>
-    </section>
+      <section id="project-bar">
+        <label>アクティブプロジェクト:</label>
+        <select id="active-project"></select>
+        <button id="create-project">新規作成</button>
+        <span id="project-period"></span>
+      </section>
 
     <main>
       <section id="view-dashboard" class="view visible">
@@ -136,8 +136,8 @@
         <h2>プロジェクト</h2>
         <form id="project-form" class="row">
           <input type="text" id="project-name" placeholder="名称" required />
-          <input type="date" id="project-start" />
-          <input type="date" id="project-end" />
+          <input type="datetime-local" id="project-start" placeholder="開始(JST)" />
+          <input type="datetime-local" id="project-end" placeholder="終了(JST)" />
           <input type="text" id="project-desc" placeholder="説明(任意)" />
           <button type="submit">追加</button>
         </form>

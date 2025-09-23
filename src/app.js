@@ -1,4 +1,4 @@
-import { $, $all, el, mount, chipInput, formatPct } from './ui.js';
+import { $, $all, el, mount, chipInput, formatPct, jstNowInputValue, jstIsoToInputValue, jstInputToIso, fmtJst } from './ui.js';
 import {
   openDB, listProjects, addProject, listDecks, addDeck, listTags, addTag,
   addMatch, listMatchesByProject, exportAll, exportProject, exportDecksOnly,
@@ -41,8 +41,8 @@ function bindNav(){
       $all('.view').forEach(v=>v.classList.remove('visible'));
       $(`#view-${view}`).classList.add('visible');
       if (view==='match') {
-        // 対戦入力を開くたびに現在時刻を初期セット
-        const dt = $('#playedAt'); if (dt) dt.value = new Date().toISOString().slice(0,16);
+        // 対戦入力を開くたびに現在時刻(JST)を初期セット
+        const dt = $('#playedAt'); if (dt) dt.value = jstNowInputValue();
       }
     });
   });
@@ -70,7 +70,7 @@ function setActiveProject(id){
   const sel = $('#active-project');
   sel.value = id || '';
   const proj = state.projects.find(p=>p.id===id);
-  $('#project-period').textContent = proj?.period ? `期間: ${proj.period.start||''} ~ ${proj.period.end||''}` : '';
+  $('#project-period').textContent = proj?.period ? `期間(JST): ${proj.period.start? fmtJst(proj.period.start):''} ~ ${proj.period.end? fmtJst(proj.period.end):''}` : '';
   renderMatchFormDecks();
   renderRecentMatches();
   renderHistory();
@@ -97,7 +97,7 @@ function initProjectBar(){
 // Match form
 let matchTagsCtl, filterTagsCtl;
 function initMatchForm(){
-  $('#playedAt').value = new Date().toISOString().slice(0,16);
+  $('#playedAt').value = jstNowInputValue();
   matchTagsCtl = chipInput($('#match-tags'), { allowNew: false, suggestions: state.tags.map(t=>t.name) });
   // segmented buttons
   bindSeg('result-group');
@@ -108,7 +108,7 @@ function initMatchForm(){
   form.addEventListener('submit', async (e)=>{
     e.preventDefault();
     if (!state.activeProjectId) { alert('プロジェクトを選択してください'); return; }
-    const playedAt = new Date($('#playedAt').value).toISOString();
+    const playedAt = jstInputToIso($('#playedAt').value);
     const result = segValue('result-group');
     const turnOrder = segValue('turn-group');
     const method = 'coin';
@@ -146,7 +146,7 @@ function initMatchForm(){
       note
     });
     form.reset();
-    $('#playedAt').value = new Date().toISOString().slice(0,16);
+    $('#playedAt').value = jstNowInputValue();
     clearSeg('result-group');
     clearSeg('turn-group');
     clearSeg('coin-group');
@@ -192,16 +192,28 @@ function clearSeg(id){ $all(`#${id} button`).forEach(b=>b.classList.remove('acti
 async function renderRecentMatches(){
   if (!state.activeProjectId) { mount($('#recent-matches'), el('div',{},'プロジェクト未選択')); return; }
   const list = await listMatchesByProject(state.activeProjectId);
-  const items = list.slice(-10).reverse().map(m => el('li',{},
-    el('div',{}, `${m.playedAt?.slice(0,16)||''} / ${m.turnOrder==='first'?'先行':'後攻'} / ${m.result==='win'?'Win':'Loss'}`),
-    el('div',{}, `${m.myDeckName} vs ${m.opDeckName}`),
-    el('div',{}, ...(m.tags||[]).map(t=> el('span',{class:'pill'}, el('span',{class:'dot',style:`background:${pickTagColor(t.tagName)}`}),'#'+t.tagName))),
-    el('div',{}, 
-      el('button',{onclick:()=> openEditMatch(m.id)},'編集'),
+  const recent = list.slice(-10).reverse();
+  const tbl = el('table',{class:'table matches'});
+  const thead = el('tr',{});
+  ['日時(JST)','結果','先後','自分デッキ','相手デッキ','レート','タグ','操作'].forEach(h=> thead.appendChild(el('th',{},h)));
+  tbl.appendChild(thead);
+  recent.forEach(m => {
+    const trEl = el('tr', { class: (m.result==='win'?'win':'loss') });
+    const resLabel = m.result==='win' ? el('span',{class:'good'},'Win') : el('span',{class:'bad'},'Loss');
+    trEl.appendChild(el('td',{}, fmtJst(m.playedAt)));
+    trEl.appendChild(el('td',{class:'result'}, resLabel));
+    trEl.appendChild(el('td',{}, m.turnOrder==='first'?'先行':'後攻'));
+    trEl.appendChild(el('td',{}, m.myDeckName));
+    trEl.appendChild(el('td',{}, m.opDeckName));
+    trEl.appendChild(el('td',{}, m.rate!=null? String(m.rate): ''));
+    trEl.appendChild(el('td',{}, ...(m.tags||[]).map(t=> el('span',{class:'pill'}, el('span',{class:'dot',style:`background:${pickTagColor(t.tagName)}`}),'#'+t.tagName))));
+    trEl.appendChild(el('td',{},
+      el('button',{onclick:()=> openEditMatch(m.id)},'編集'), ' ',
       el('button',{onclick:()=> toggleDeleteMatch(m)}, m.deleted? '復元' : '削除')
-    )
-  ));
-  mount($('#recent-matches'), el('div',{class:'panel'}, el('ul',{class:'list'}, ...items)));
+    ));
+    tbl.appendChild(trEl);
+  });
+  mount($('#recent-matches'), el('div',{class:'panel'}, tbl));
 }
 
 // Dashboard
@@ -226,11 +238,23 @@ async function renderDashboard(){
   ));
 
   // Rate line chart
-  const series = rateSeries(filtered);
+  // プロジェクト期間内のみグラフ表示
+  let graphFiltered = filtered;
+  const proj = state.projects.find(p=>p.id===state.activeProjectId);
+  if (proj?.period && (proj.period.start || proj.period.end)){
+    const s = proj.period.start ? Date.parse(proj.period.start) : -Infinity;
+    const e = proj.period.end ? Date.parse(proj.period.end) : Infinity;
+    graphFiltered = filtered.filter(m => {
+      const t = Date.parse(m.playedAt||'');
+      return (isFinite(t)?t:0) >= s && (isFinite(t)?t:0) <= e;
+    });
+  }
+
+  const series = rateSeries(graphFiltered);
   ensureLineChart($('#rate-canvas'), series);
 
   // Matchup matrix
-  const mx = matchupMatrix(filtered);
+  const mx = matchupMatrix(graphFiltered);
   const tbl = el('table', { class:'matrix' });
   // header
   const head = el('tr',{});
@@ -416,8 +440,8 @@ function initProjectUI(){
   $('#project-form').addEventListener('submit', async (e)=>{
     e.preventDefault();
     const name = $('#project-name').value.trim(); if(!name) return;
-    const start = $('#project-start').value || null;
-    const end = $('#project-end').value || null;
+    const start = $('#project-start').value ? jstInputToIso($('#project-start').value) : null;
+    const end = $('#project-end').value ? jstInputToIso($('#project-end').value) : null;
     const description = $('#project-desc').value || '';
     const id = await addProject({ name, description, period: (start||end)? { start, end } : null });
     e.target.reset();
@@ -433,7 +457,7 @@ function renderProjectList(){
   const ul = $('#project-list'); ul.innerHTML='';
   for (const p of state.projects){
     const li = el('li',{},
-      el('span',{}, p.name, p.period? ` / ${p.period.start||''} ~ ${p.period.end||''}` : ''),
+      el('span',{}, p.name, p.period? ` / ${p.period.start? fmtJst(p.period.start):''} ~ ${p.period.end? fmtJst(p.period.end):''}` : ''),
       el('span',{}, el('button',{onclick:()=> setActiveProject(p.id)}, '切替'), el('button',{onclick:()=> deleteProject(p.id)}, '削除'))
     );
     ul.appendChild(li);
@@ -509,7 +533,7 @@ async function renderHistory(){
   if (!state.activeProjectId) { mount($('#history-list'), el('div',{},'プロジェクト未選択')); return; }
   const list = await listAllMatchesByProject(state.activeProjectId);
   const items = list.slice().reverse().map(m => el('li',{},
-    el('div',{}, `${m.playedAt?.slice(0,16)||''} / ${m.turnOrder==='first'?'先行':'後攻'} / ${m.result==='win'?'Win':'Loss'} ${m.deleted?'[削除]':''}`),
+    el('div',{}, `${fmtJst(m.playedAt)} / ${m.turnOrder==='first'?'先行':'後攻'} / ${m.result==='win'?'Win':'Loss'} ${m.deleted?'[削除]':''}`),
     el('div',{}, `${m.myDeckName} vs ${m.opDeckName}`),
     el('div',{}, ...(m.tags||[]).map(t=> el('span',{class:'pill'}, el('span',{class:'dot',style:`background:${pickTagColor(t.tagName)}`}),'#'+t.tagName))),
     el('div',{}, 
@@ -536,7 +560,7 @@ async function openEditMatch(matchId){
     el('h3',{},'対戦を編集'),
     el('form',{id:'edit-form'},
       el('div',{class:'grid'},
-        el('label',{},'日時', el('input',{type:'datetime-local', id:'e_playedAt', value:(m.playedAt? new Date(m.playedAt).toISOString().slice(0,16) : new Date().toISOString().slice(0,16))})),
+        el('label',{},'日時(JST)', el('input',{type:'datetime-local', id:'e_playedAt', value: jstIsoToInputValue(m.playedAt)})),
         el('label',{},'結果', sel('e_result', ['win','loss'], m.result)),
         el('label',{},'先行/後攻', sel('e_turnOrder', ['first','second'], m.turnOrder)),
         el('label',{},'コイントス結果', sel('e_coin', ['heads','tails'], typeof m.initiative?.value==='string'? m.initiative.value : 'heads')),
@@ -557,7 +581,7 @@ async function openEditMatch(matchId){
   tagsCtl.set((m.tags||[]).map(t=>t.tagName));
   $('#edit-form').addEventListener('submit', async (e)=>{
     e.preventDefault();
-    const playedAt = new Date($('#e_playedAt').value).toISOString();
+    const playedAt = jstInputToIso($('#e_playedAt').value);
     const result = $('#e_result').value;
     const turnOrder = $('#e_turnOrder').value;
     const initiative = { method:'coin', value: $('#e_coin').value };

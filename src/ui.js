@@ -17,6 +17,39 @@ export function el(tag, attrs={}, ...children){
 
 export function mount(parent, child){ parent.innerHTML=''; if (child) parent.appendChild(child); }
 
+// --- JST time helpers ---
+const JST_OFFSET_MS = 9*60*60*1000;
+function pad2(n){ return n<10? '0'+n : String(n); }
+
+export function jstNowInputValue(){
+  const d = new Date(Date.now()+JST_OFFSET_MS);
+  // Use UTC getters to extract JST components
+  const s = `${d.getUTCFullYear()}-${pad2(d.getUTCMonth()+1)}-${pad2(d.getUTCDate())}T${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+  return s;
+}
+
+export function jstIsoToInputValue(iso){
+  const t = Date.parse(iso||'');
+  const d = isFinite(t)? new Date(t+JST_OFFSET_MS) : new Date(Date.now()+JST_OFFSET_MS);
+  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth()+1)}-${pad2(d.getUTCDate())}T${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+}
+
+export function jstInputToIso(val){
+  // val: 'YYYY-MM-DDTHH:MM' interpreted as JST values
+  const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2})$/.exec(val||'');
+  if (!m) return new Date().toISOString();
+  const [_, y, mo, d, h, mi] = m;
+  const ms = Date.UTC(Number(y), Number(mo)-1, Number(d), Number(h), Number(mi)) - JST_OFFSET_MS;
+  return new Date(ms).toISOString();
+}
+
+export function fmtJst(iso){
+  const t = Date.parse(iso||'');
+  if (!isFinite(t)) return '';
+  const d = new Date(t+JST_OFFSET_MS);
+  return `${d.getUTCFullYear()}/${pad2(d.getUTCMonth()+1)}/${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+}
+
 export function chipInput(container, { allowNew=true, suggestions=[] }={}){
   container.classList.add('chip-input');
   const state = { values: [] };
@@ -53,4 +86,3 @@ export function chipInput(container, { allowNew=true, suggestions=[] }={}){
     clear(){ this.set([]); input.value=''; }
   };
 }
-
