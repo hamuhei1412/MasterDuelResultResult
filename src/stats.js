@@ -24,6 +24,8 @@ export function kpis(matches) {
   const secondWins = second.filter(m=>m.result==='win').length;
   return {
     total: n,
+    firstCount: firstN,
+    secondCount: secondN,
     winRate: rate(wins, n),
     firstRate: rate(firstN, n),
     secondRate: rate(secondN, n),

@@ -36,9 +36,9 @@
           <details>
             <summary>フィルタ</summary>
             <div class="filter-row">
-              <label>タグ（複数）:</label>
+              <label>タグ:</label>
               <div id="filter-tags" class="chip-input" data-allow-new="false"></div>
-              <label class="toggle"><input type="checkbox" id="filter-tags-mode" />AND/OR 切替（ON=AND）</label>
+              <label class="toggle"><input type="checkbox" id="filter-tags-mode" />AND/OR 切替</label>
             </div>
           </details>
         </div>
@@ -48,7 +48,7 @@
           <canvas id="rate-canvas" style="width:100%;height:220px"></canvas>
         </div>
         <div id="matchup" class="panel">
-          <h3>デッキ相性表（自分×相手）</h3>
+          <h3>デッキ相性表</h3>
           <div id="matchup-table"></div>
         </div>
         <div id="tag-stats" class="panel"></div>
@@ -59,32 +59,32 @@
         <form id="match-form">
           <div class="grid">
             <label>日時<input type="datetime-local" id="playedAt" required /></label>
-            <label>コイントス結果
+            <label>コイントス
               <div id="coin-group" class="seg" role="group" aria-label="コイントス">
                 <button type="button" data-value="heads">表</button>
                 <button type="button" data-value="tails">裏</button>
               </div>
             </label>
-            <label>先行/後攻
-              <div id="turn-group" class="seg" role="group" aria-label="先行後攻">
-                <button type="button" data-value="first">先行</button>
+            <label>先攻/後攻
+              <div id="turn-group" class="seg" role="group" aria-label="先攻後攻">
+                <button type="button" data-value="first">先攻</button>
                 <button type="button" data-value="second">後攻</button>
               </div>
             </label>
-            <label>自分デッキ（選択・必須）
+            <label>自分デッキ
               <select id="myDeckId" required></select>
             </label>
-            <label>相手デッキ（選択・必須）
+            <label>相手デッキ
               <select id="opDeckNameSel" required></select>
             </label>
             <label>結果
               <div id="result-group" class="seg" role="group" aria-label="結果">
-                <button type="button" data-value="win">Win</button>
-                <button type="button" data-value="loss">Loss</button>
+                <button type="button" data-value="win">勝ち</button>
+                <button type="button" data-value="loss">負け</button>
               </div>
             </label>
             <label>レート<input type="number" id="rate" min="0" step="1" /></label>
-            <label>タグ（選択式）<div id="match-tags"></div></label>
+            <label>タグ<div id="match-tags"></div></label>
             <label>メモ<textarea id="note" rows="2"></textarea></label>
           </div>
           <div class="actions">
@@ -152,7 +152,7 @@
             <label class="file-btn">インポート<input type="file" id="import-all" accept="application/json" /></label>
           </div>
           <div class="row">
-            <label>タイムゾーン/表示形式はブラウザ設定に依存（簡易）。</label>
+            <label>タイムゾーンと表示形式はブラウザ設定に依存します。</label>
           </div>
         </div>
       </section>
