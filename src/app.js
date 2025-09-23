@@ -1,4 +1,4 @@
-import { $, $all, el, mount, chipInput, formatPct, jstNowInputValue, jstIsoToInputValue, jstInputToIso, fmtJst } from './ui.js';
+import { $, $all, el, mount, chipInput, tagPicker, formatPct, jstNowInputValue, jstIsoToInputValue, jstInputToIso, fmtJst } from './ui.js';
 import {
   openDB, listProjects, addProject, listDecks, addDeck, listTags, addTag,
   addMatch, listMatchesByProject, exportAll, exportProject, exportDecksOnly,
@@ -98,7 +98,7 @@ function initProjectBar(){
 let matchTagsCtl, filterTagsCtl;
 function initMatchForm(){
   $('#playedAt').value = jstNowInputValue();
-  matchTagsCtl = chipInput($('#match-tags'), { allowNew: false, suggestions: state.tags.map(t=>t.name) });
+  matchTagsCtl = tagPicker($('#match-tags'), state.tags);
   // segmented buttons
   bindSeg('result-group');
   bindSeg('turn-group');
@@ -392,6 +392,7 @@ function initTagUI(){
     e.target.reset();
     await refreshMasters();
     renderTagList();
+    if (matchTagsCtl && matchTagsCtl.setOptions) matchTagsCtl.setOptions(state.tags);
   });
   renderTagList();
 }
@@ -590,7 +591,7 @@ async function openEditMatch(matchId){
         el('label',{},'自分デッキ', deckSelect('e_myDeck', state.decks, m.myDeckId)),
         el('label',{},'相手デッキ', opDeckSelect('e_opDeck', state.decks, m.opDeckName)),
         el('label',{},'レート', el('input',{type:'number', id:'e_rate', min:'0', step:'1', value: m.rate ?? ''})),
-        el('label',{},'タグ', el('div',{id:'e_tags', class:'chip-input', 'data-allow-new':'false'})),
+        el('label',{},'タグ（選択式）', el('div',{id:'e_tags'})),
         el('label',{},'メモ', el('textarea',{id:'e_note', rows:'2'}, m.note||''))
       ),
       el('div',{class:'actions'},
@@ -600,8 +601,8 @@ async function openEditMatch(matchId){
     )
   );
   mount(modal, dlg);
-  const tagsCtl = chipInput($('#e_tags'), { allowNew:false, suggestions: state.tags.map(t=>t.name) });
-  tagsCtl.set((m.tags||[]).map(t=>t.tagName));
+  const tagsCtl = tagPicker($('#e_tags'), state.tags);
+  tagsCtl.setSelected((m.tags||[]).map(t=>t.tagName));
   $('#edit-form').addEventListener('submit', async (e)=>{
     e.preventDefault();
     const playedAt = jstInputToIso($('#e_playedAt').value);

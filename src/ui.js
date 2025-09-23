@@ -50,6 +50,31 @@ export function fmtJst(iso){
   return `${d.getUTCFullYear()}/${pad2(d.getUTCMonth()+1)}/${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
 }
 
+// --- Tag picker (checkbox-based, selection only) ---
+export function tagPicker(container, tags){
+  container.classList.add('tag-picker');
+  function render(options, selected=new Set()){
+    container.innerHTML='';
+    for (const t of options){
+      const id = `tag-${t.id||t.name}`;
+      const checked = selected.has(t.name);
+      const item = el('label',{class:'tag-item', for:id},
+        el('input',{type:'checkbox', id, value:t.name, checked: checked? 'checked': null}),
+        el('span',{class:'dot', style:`width:8px;height:8px;border-radius:50%;background:${t.color||'#556'}`}),
+        '#'+t.name
+      );
+      container.appendChild(item);
+    }
+  }
+  let opts = Array.isArray(tags)? tags.slice(): [];
+  render(opts);
+  return {
+    setOptions(next){ opts = Array.isArray(next)? next.slice(): []; render(opts, new Set(this.get())); },
+    setSelected(names){ render(opts, new Set(names||[])); },
+    get(){ return Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(i=>i.value); }
+  };
+}
+
 export function chipInput(container, { allowNew=true, suggestions=[] }={}){
   container.classList.add('chip-input');
   const state = { values: [] };

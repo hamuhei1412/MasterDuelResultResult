@@ -57,6 +57,11 @@ button:hover{filter:brightness(1.1)}
 .good{color:var(--win)}.bad{color:var(--loss)}
 footer{padding:12px;border-top:1px solid var(--border);color:var(--muted)}
 
+/* Tag picker (checkbox list) */
+.tag-picker{display:flex;flex-wrap:wrap;gap:6px;background:#0f1320;border:1px solid var(--border);border-radius:8px;padding:6px}
+.tag-item{display:inline-flex;align-items:center;gap:6px;background:#1a2033;border:1px solid var(--border);border-radius:999px;padding:2px 8px}
+.tag-item input{accent-color:var(--accent)}
+
 /* Modal */
 .modal{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000}
 .modal.hidden{display:none}
