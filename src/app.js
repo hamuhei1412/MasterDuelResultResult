@@ -230,6 +230,8 @@ async function renderDashboard(){
   const k = kpis(filtered);
   mount($('#kpi'), el('div',{class:'kpi'},
     card('対戦数', String(k.total)),
+    card('勝ち数', String(filtered.filter(m=>m.result==='win').length)),
+    card('負け数', String(filtered.filter(m=>m.result==='loss').length)),
     card('勝率', formatPct(k.winRate)),
     card('先行率', formatPct(k.firstRate)),
     card('後攻率', formatPct(k.secondRate)),
@@ -536,17 +538,33 @@ function initHistoryUI(){
 
 async function renderHistory(){
   if (!state.activeProjectId) { mount($('#history-list'), el('div',{},'プロジェクト未選択')); return; }
-  const list = await listAllMatchesByProject(state.activeProjectId);
-  const items = list.slice().reverse().map(m => el('li',{},
-    el('div',{}, `${fmtJst(m.playedAt)} / ${m.turnOrder==='first'?'先行':'後攻'} / ${m.result==='win'?'Win':'Loss'} ${m.deleted?'[削除]':''}`),
-    el('div',{}, `${m.myDeckName} vs ${m.opDeckName}`),
-    el('div',{}, ...(m.tags||[]).map(t=> el('span',{class:'pill'}, el('span',{class:'dot',style:`background:${pickTagColor(t.tagName)}`}),'#'+t.tagName))),
-    el('div',{}, 
-      el('button',{onclick:()=> openEditMatch(m.id)},'編集'),
+  const list = await listAllMatchesByProject(state.activeProjectId); // 昇順
+  // 番号付与（昇順で1..N）
+  const numberMap = new Map(); list.forEach((m,i)=> numberMap.set(m.id, i+1));
+  const rows = list.slice().reverse(); // 表示は新しい順
+  const tbl = el('table',{class:'table matches'});
+  const thead = el('tr',{});
+  ['#','日時(JST)','結果','先後','自分デッキ','相手デッキ','レート','タグ','状態','操作'].forEach(h=> thead.appendChild(el('th',{},h)));
+  tbl.appendChild(thead);
+  rows.forEach(m => {
+    const trEl = el('tr', { class: `${m.result==='win'?'win':'loss'} ${m.deleted?'deleted':''}`.trim() });
+    const resLabel = m.result==='win' ? el('span',{class:'good'},'Win') : el('span',{class:'bad'},'Loss');
+    trEl.appendChild(el('td',{}, String(numberMap.get(m.id))));
+    trEl.appendChild(el('td',{}, fmtJst(m.playedAt)));
+    trEl.appendChild(el('td',{class:'result'}, resLabel));
+    trEl.appendChild(el('td',{}, m.turnOrder==='first'?'先行':'後攻'));
+    trEl.appendChild(el('td',{}, m.myDeckName));
+    trEl.appendChild(el('td',{}, m.opDeckName));
+    trEl.appendChild(el('td',{}, m.rate!=null? String(m.rate): ''));
+    trEl.appendChild(el('td',{}, ...(m.tags||[]).map(t=> el('span',{class:'pill'}, el('span',{class:'dot',style:`background:${pickTagColor(t.tagName)}`}),'#'+t.tagName))));
+    trEl.appendChild(el('td',{}, m.deleted? '削除':''));
+    trEl.appendChild(el('td',{},
+      el('button',{onclick:()=> openEditMatch(m.id)},'編集'), ' ',
       el('button',{onclick:()=> toggleDeleteMatch(m)}, m.deleted? '復元' : '削除')
-    )
-  ));
-  mount($('#history-list'), el('div',{class:'panel'}, el('ul',{class:'list'}, ...items)));
+    ));
+    tbl.appendChild(trEl);
+  });
+  mount($('#history-list'), el('div',{class:'panel'}, tbl));
 }
 
 async function toggleDeleteMatch(m){

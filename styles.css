@@ -42,6 +42,7 @@ button:hover{filter:brightness(1.1)}
 .matches tr.loss td{background:#201416}
 .matches td.result .good{font-weight:600}
 .matches td.result .bad{font-weight:600}
+.matches tr.deleted td{opacity:0.6}
 .pill{display:inline-flex;align-items:center;gap:6px;background:#20263a;border:1px solid var(--border);border-radius:999px;padding:2px 8px;font-size:12px}
 .pill .dot{width:8px;height:8px;border-radius:50%}
 .pill .del{cursor:pointer;color:#f88}
