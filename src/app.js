@@ -4,7 +4,7 @@ import {
   addMatch, listMatchesByProject, exportAll, exportProject, exportDecksOnly,
   importJSON, getMatch, updateMatch, setMatchDeleted, listAllMatchesByProject
 } from './db.js';
-import { kpis, tagStats, filterByTags, rateSeries, matchupMatrix } from './stats.js';
+import { kpis, tagStats, filterByTags, rateSeries, matchupMatrix, movingWinRateSeries } from './stats.js';
 import { ensureLineChart } from './charts.js';
 
 // App state
@@ -268,6 +268,10 @@ async function renderDashboard(){
     card('後攻率', formatPct(k.secondRate)),
     card('先攻時勝率', formatPct(k.firstWinRate)),
     card('後攻時勝率', formatPct(k.secondWinRate)),
+    // Coin toss KPIs (先攻=コイントス勝ち / 後攻=コイントス負け)
+    card('コイントス勝ち数', String(k.coinWins)),
+    card('コイントス負け数', String(k.coinLosses)),
+    card('コイントス勝率', formatPct(k.coinWinRate)),
   ));
 
   // Rate line chart
@@ -286,6 +290,22 @@ async function renderDashboard(){
   const series = rateSeries(graphFiltered);
   // 横軸は試合数（1..N）で描画
   ensureLineChart($('#rate-canvas'), series, { xMode: 'count' });
+
+  // Win-rate moving average (last 20 matches)
+  // 入力窓サイズ（ローカルストレージ保存込み）
+  let windowSize = 20;
+  const winWin = document.getElementById('winrate-window');
+  if (winWin){
+    if (!winWin.value){
+      const saved = Number(localStorage.getItem('winrateWindow')||'');
+      if (Number.isFinite(saved) && saved>0) winWin.value = String(saved);
+      else winWin.value = '20';
+    }
+    const n = parseInt(winWin.value, 10);
+    windowSize = Number.isFinite(n) && n>0 ? Math.min(n, 500) : 20;
+  }
+  const maSeries = movingWinRateSeries(graphFiltered, windowSize);
+  ensureLineChart($('#winrate-canvas'), maSeries, { xMode: 'count', color:'#10b981', area:'rgba(16,185,129,0.15)' });
 
   // Matchup matrix
   const mx = matchupMatrix(graphFiltered);
@@ -324,6 +344,15 @@ async function renderDashboard(){
   $('#filter-tags-mode').onchange = ()=> renderDashboard();
   // chip input triggers re-render on Enter via keydown; add slight delay
   $('#filter-tags').addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key==='Backspace') setTimeout(renderDashboard, 0); });
+  const winrateWinEl = document.getElementById('winrate-window');
+  if (winrateWinEl){
+    winrateWinEl.onchange = ()=>{
+      const n = Math.max(1, Math.min(500, parseInt(winrateWinEl.value||'20',10)));
+      winrateWinEl.value = String(n);
+      try { localStorage.setItem('winrateWindow', String(n)); } catch(_e){}
+      renderDashboard();
+    };
+  }
 }
 
 function card(title, value){

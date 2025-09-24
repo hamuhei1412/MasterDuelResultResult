@@ -30,7 +30,11 @@ export function kpis(matches) {
     firstRate: rate(firstN, n),
     secondRate: rate(secondN, n),
     firstWinRate: rate(firstWins, firstN),
-    secondWinRate: rate(secondWins, secondN)
+    secondWinRate: rate(secondWins, secondN),
+    // Coin toss W/L is derived as: first = win, second = loss
+    coinWins: firstN,
+    coinLosses: secondN,
+    coinWinRate: rate(firstN, n)
   };
 }
 
@@ -84,6 +88,26 @@ export function rateSeries(matches){
     .filter(v => isFinite(v.t));
   withTime.sort((a,b)=> a.t - b.t);
   return withTime.map((v, i) => ({ x: i+1, y: v.r }));
+}
+
+// Moving average win rate series over last `windowSize` matches.
+// Returns [{ x: matchIndex(1-based), y: winRate(0..100, 0.1% step) }]
+export function movingWinRateSeries(matches, windowSize=20){
+  const withTime = matches
+    .map(m => ({ t: Date.parse(m.playedAt || ''), win: m.result==='win' ? 1 : 0 }))
+    .filter(v => isFinite(v.t));
+  withTime.sort((a,b)=> a.t - b.t);
+  const n = withTime.length;
+  const res = [];
+  let sum = 0;
+  for (let i=0;i<n;i++){
+    sum += withTime[i].win;
+    if (i >= windowSize) sum -= withTime[i - windowSize].win;
+    const den = Math.min(i+1, windowSize);
+    const pct = den ? Math.round((sum/den)*1000)/10 : null;
+    res.push({ x: i+1, y: pct });
+  }
+  return res;
 }
 
 // Matchup matrix: rows = myDeckName, cols = opDeckName
