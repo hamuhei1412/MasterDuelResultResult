@@ -22,6 +22,10 @@ export function kpis(matches) {
   const firstN = first.length; const secondN = second.length;
   const firstWins = first.filter(m=>m.result==='win').length;
   const secondWins = second.filter(m=>m.result==='win').length;
+  // Coin toss counts based on recorded heads/tails (not turn order)
+  const coinHeads = matches.filter(m=> (m.initiative?.method==="coin") && m.initiative?.value === 'heads').length;
+  const coinTails = matches.filter(m=> (m.initiative?.method==="coin") && m.initiative?.value === 'tails').length;
+  const coinTotal = coinHeads + coinTails;
   return {
     total: n,
     firstCount: firstN,
@@ -31,10 +35,10 @@ export function kpis(matches) {
     secondRate: rate(secondN, n),
     firstWinRate: rate(firstWins, firstN),
     secondWinRate: rate(secondWins, secondN),
-    // Coin toss W/L is derived as: first = win, second = loss
-    coinWins: firstN,
-    coinLosses: secondN,
-    coinWinRate: rate(firstN, n)
+    // Coin toss stats: heads/tails as recorded
+    coinHeads,
+    coinTails,
+    coinHeadsRate: rate(coinHeads, coinTotal)
   };
 }
 

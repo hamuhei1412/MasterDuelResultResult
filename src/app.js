@@ -178,8 +178,12 @@ async function renderRecentMatches(){
     trEl.appendChild(el('td',{}, fmtJst(m.playedAt)));
     trEl.appendChild(el('td',{class:'result'}, resLabel));
     trEl.appendChild(el('td',{}, m.turnOrder==='first'?'先攻':'後攻'));
-    // コイントスの勝敗（先攻=勝ち、後攻=負け として表示）
-    trEl.appendChild(el('td',{}, m.turnOrder==='first' ? '勝ち' : '負け'));
+    // コイントスの結果（表/裏）
+    {
+      const cv = (m.initiative && m.initiative.value) || null;
+      const label = cv === 'heads' ? '表' : (cv === 'tails' ? '裏' : '-');
+      trEl.appendChild(el('td',{}, label));
+    }
     trEl.appendChild(el('td',{}, m.myDeckName));
     trEl.appendChild(el('td',{}, m.opDeckName));
     trEl.appendChild(el('td',{}, m.rate!=null? String(m.rate): ''));
@@ -269,10 +273,10 @@ async function renderDashboard(){
     card('後攻率', formatPct(k.secondRate)),
     card('先攻時勝率', formatPct(k.firstWinRate)),
     card('後攻時勝率', formatPct(k.secondWinRate)),
-    // Coin toss KPIs (先攻=コイントス勝ち / 後攻=コイントス負け)
-    card('コイントス勝ち数', String(k.coinWins)),
-    card('コイントス負け数', String(k.coinLosses)),
-    card('コイントス勝率', formatPct(k.coinWinRate)),
+    // Coin toss KPIs（表/裏 集計）
+    card('コイン表数', String(k.coinHeads || 0)),
+    card('コイン裏数', String(k.coinTails || 0)),
+    card('コイン表率', formatPct(k.coinHeadsRate)),
   ));
 
   // Rate line chart
@@ -710,7 +714,11 @@ async function renderHistory(){
     trEl.appendChild(el('td',{}, fmtJst(m.playedAt)));
     trEl.appendChild(el('td',{class:'result'}, resLabel));
     trEl.appendChild(el('td',{}, m.turnOrder==='first'?'先攻':'後攻'));
-    trEl.appendChild(el('td',{}, m.turnOrder==='first' ? '勝ち' : '負け'));
+    {
+      const cv = (m.initiative && m.initiative.value) || null;
+      const label = cv === 'heads' ? '表' : (cv === 'tails' ? '裏' : '-');
+      trEl.appendChild(el('td',{}, label));
+    }
     trEl.appendChild(el('td',{}, m.myDeckName));
     trEl.appendChild(el('td',{}, m.opDeckName));
     trEl.appendChild(el('td',{}, m.rate!=null? String(m.rate): ''));
