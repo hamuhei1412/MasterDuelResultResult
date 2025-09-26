@@ -6,6 +6,13 @@ export function ensureLineChart(canvas, points, options={}){
   canvas.__lc.update(points, options);
 }
 
+// Simple pie chart (no deps)
+export function ensurePieChart(canvas, items, options={}){
+  if (!canvas) return;
+  if (!canvas.__pc) canvas.__pc = new PieChart(canvas, options);
+  canvas.__pc.update(items, options);
+}
+
 class LineChart{
   constructor(canvas, options){
     this.canvas = canvas;
@@ -124,6 +131,61 @@ class LineChart{
     this.hover = { x, y }; this.draw();
   }
   onLeave(){ this.hover = null; this.draw(); }
+}
+
+class PieChart{
+  constructor(canvas, options){
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.items = [];
+    this.opts = options;
+    this.ro = new ResizeObserver(()=> this.draw());
+    this.ro.observe(canvas);
+  }
+  update(items, options={}){
+    // items: [{ label, value, color }]
+    this.items = Array.isArray(items)? items.filter(i=>i && i.value>0) : [];
+    this.opts = { donut:false, innerRatio:0.6, stroke:'#fff', strokeWidth:1, label:false, ...options };
+    this.draw();
+  }
+  setSize(){
+    const dpr = window.devicePixelRatio || 1;
+    const w = this.canvas.clientWidth || 600;
+    const h = this.canvas.clientHeight || 360;
+    this.canvas.width = Math.round(w * dpr);
+    this.canvas.height = Math.round(h * dpr);
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.w = w; this.h = h;
+  }
+  draw(){
+    this.setSize();
+    const { ctx, w, h } = this;
+    ctx.clearRect(0,0,w,h);
+    const total = this.items.reduce((s,i)=>s+i.value, 0);
+    if (!total){
+      ctx.fillStyle = '#99a0b0'; ctx.font='12px system-ui, sans-serif'; ctx.fillText('データなし', 10, 20); return;
+    }
+    const cx = w/2, cy = h/2;
+    const r = Math.min(w, h) * 0.36; // big pie
+    let a0 = -Math.PI/2;
+    ctx.lineWidth = this.opts.strokeWidth;
+    for (const it of this.items){
+      const a1 = a0 + (Math.PI*2) * (it.value/total);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, r, a0, a1);
+      ctx.closePath();
+      ctx.fillStyle = it.color || '#7aa2f7';
+      ctx.fill();
+      if (this.opts.stroke){ ctx.strokeStyle = this.opts.stroke; ctx.stroke(); }
+      a0 = a1;
+    }
+    if (this.opts.donut){
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath(); ctx.arc(cx, cy, r*this.opts.innerRatio, 0, Math.PI*2); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+  }
 }
 
 function makeTooltip(canvas){

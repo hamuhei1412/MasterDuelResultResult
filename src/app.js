@@ -5,7 +5,7 @@ import {
   importJSON, getMatch, updateMatch, setMatchDeleted, listAllMatchesByProject
 } from './db.js';
 import { kpis, tagStats, filterByTags, rateSeries, matchupMatrix, movingWinRateSeries } from './stats.js';
-import { ensureLineChart } from './charts.js';
+import { ensureLineChart, ensurePieChart } from './charts.js';
 
 // App state
 const state = {
@@ -340,6 +340,22 @@ async function renderDashboard(){
   );
   mount($('#tag-stats'), el('div',{class:'panel'}, table));
 
+  // Opponent deck breakdown pies
+  try {
+    // Last 20 among filtered (newest order preserved via slice(-20))
+    const last20 = filtered.slice(-20);
+    const last20Items = deckBreakdownItems(last20);
+    ensurePieChart($('#opdeck-last20-canvas'), last20Items, { donut:false });
+    renderPieLegend($('#opdeck-last20-legend'), last20Items);
+
+    // All filtered matches in project
+    const allItems = deckBreakdownItems(filtered);
+    ensurePieChart($('#opdeck-all-canvas'), allItems, { donut:false });
+    renderPieLegend($('#opdeck-all-legend'), allItems);
+  } catch(_e) {
+    // noop
+  }
+
   // Re-render when filters change
   $('#filter-tags-mode').onchange = ()=> renderDashboard();
   // chip input triggers re-render on Enter via keydown; add slight delay
@@ -376,6 +392,48 @@ function gradientLegend(){
   const bar = el('div',{style:'height:10px;background:linear-gradient(90deg, hsl(0 70% 40%), hsl(60 70% 40%), hsl(120 70% 40%));border-radius:6px;margin:4px 0'});
   const row = el('div',{class:'row', style:'justify-content:space-between;font-size:12px'}, el('span',{},'0%'), el('span',{},'50%'), el('span',{},'100%'));
   return el('div',{}, bar, row);
+}
+
+function deckBreakdownItems(list){
+  const map = new Map();
+  for (const m of list){
+    const name = (m.opDeckName && m.opDeckName.trim()) ? m.opDeckName.trim() : '(未設定)';
+    map.set(name, (map.get(name)||0) + 1);
+  }
+  const entries = [...map.entries()].sort((a,b)=> b[1]-a[1]);
+  // Limit slices; group tail as その他 for readability
+  const MAX = 12;
+  const head = entries.slice(0, MAX);
+  const tail = entries.slice(MAX);
+  const items = head.map(([label, value])=> ({ label, value, color: pickDeckColor(label) }));
+  if (tail.length){
+    const otherVal = tail.reduce((s,[,v])=>s+v,0);
+    items.push({ label:'その他', value: otherVal, color:'#d1d5db' });
+  }
+  return items;
+}
+
+function renderPieLegend(container, items){
+  if (!container) return;
+  const total = items.reduce((s,i)=>s+i.value,0) || 1;
+  const rows = items.map(it=> el('div',{class:'legend-item'},
+    el('span',{class:'dot', style:`background:${it.color}`}),
+    el('span',{class:'label'}, it.label),
+    el('span',{class:'val'}, `${it.value} (${Math.round(it.value/total*1000)/10}%)`)
+  ));
+  mount(container, el('div',{}, ...rows));
+}
+
+function pickDeckColor(name){
+  // Prefer deck master color by exact name
+  const d = state.decks.find(d=>d.name===name);
+  if (d && d.color) return d.color;
+  // Hash name to pastel HSL color for consistency
+  const h = Math.abs(hashCode(name)) % 360;
+  return `hsl(${h} 70% 60%)`;
+}
+function hashCode(str){
+  let h=0; for(let i=0;i<str.length;i++){ h = ((h<<5)-h + str.charCodeAt(i))|0; } return h;
 }
 
 // Deck UI
