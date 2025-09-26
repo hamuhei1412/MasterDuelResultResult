@@ -2,7 +2,8 @@ import { $, $all, el, mount, chipInput, tagPicker, formatPct, jstNowInputValue, 
 import {
   openDB, listProjects, addProject, listDecks, addDeck, listTags, addTag,
   addMatch, listMatchesByProject, exportAll, exportProject, exportDecksOnly,
-  importJSON, getMatch, updateMatch, setMatchDeleted, listAllMatchesByProject
+  importJSON, getMatch, updateMatch, setMatchDeleted, listAllMatchesByProject,
+  updateDeck
 } from './db.js';
 import { kpis, tagStats, filterByTags, rateSeries, matchupMatrix, movingWinRateSeries } from './stats.js';
 import { ensureLineChart, ensurePieChart } from './charts.js';
@@ -476,7 +477,10 @@ function renderDeckList(){
         d.favorite? el('span',{class:'pill'}, '★お気に入り'):null,
         (d.tags||[]).map(t=>el('span',{class:'pill'}, '#'+t))
       ),
-      el('span',{}, el('button',{onclick: async ()=>{ await deleteDeck(d.id); }}, '削除'))
+      el('span',{},
+        el('button',{onclick: ()=> openEditDeck(d)}, '編集'), ' ',
+        el('button',{onclick: async ()=>{ await deleteDeck(d.id); }}, '削除')
+      )
     );
     ul.appendChild(li);
   }
@@ -492,6 +496,44 @@ async function deleteDeck(id){
   await refreshMasters();
   renderDeckList();
   renderMatchFormDecks();
+}
+
+async function openEditDeck(deck){
+  const modal = $('#modal');
+  modal.classList.remove('hidden');
+  const dlg = el('div',{class:'dialog'},
+    el('h3',{}, 'デッキを編集'),
+    el('form',{id:'deck-edit-form'},
+      el('div',{class:'grid'},
+        el('label',{}, '名称', el('input',{id:'ed_name', type:'text', maxlength:'60', value: deck.name})),
+        el('label',{}, '色', el('input',{id:'ed_color', type:'color', value: deck.color || '#888888'})),
+        el('label',{}, 'タグ（カンマ区切り）', el('input',{id:'ed_tags', type:'text', value: (deck.tags||[]).join(', ')})),
+        el('label',{}, el('span',{}, '★お気に入り'), el('input',{id:'ed_fav', type:'checkbox', checked: deck.favorite? 'checked': null})),
+        el('label',{}, 'メモ', el('input',{id:'ed_note', type:'text', value: deck.note || ''}))
+      ),
+      el('div',{class:'actions'},
+        el('button',{type:'submit'}, '保存'),
+        el('button',{type:'button', onclick: closeModal}, 'キャンセル')
+      )
+    )
+  );
+  mount(modal, dlg);
+  $('#deck-edit-form').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const name = $('#ed_name').value.trim(); if (!name){ alert('名称は必須'); return; }
+    const color = $('#ed_color').value || null;
+    const tags = ($('#ed_tags').value||'').split(',').map(s=>s.trim()).filter(Boolean);
+    const favorite = $('#ed_fav').checked;
+    const note = ($('#ed_note').value||'').trim() || null;
+    try{
+      await updateDeck(deck.id, { name, color, tags, favorite, note });
+      closeModal();
+      await refreshMasters();
+      renderDeckList();
+      renderMatchFormDecks();
+      renderDashboard();
+    } catch(err){ alert('更新に失敗しました: '+(err?.message||String(err))); }
+  });
 }
 
 // Tag UI

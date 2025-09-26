@@ -161,6 +161,17 @@ export async function addDeck({name, color, tags, favorite, note}) {
   return id;
 }
 
+export async function updateDeck(id, updates) {
+  const db = await openDB();
+  const tx = db.transaction(['decks'], 'readwrite');
+  const store = tx.objectStore('decks');
+  const old = await new Promise((res,rej)=>{ const r = store.get(id); r.onsuccess=()=>res(r.result||null); r.onerror=()=>rej(r.error); });
+  if (!old) throw new Error('deck not found');
+  const merged = { ...old, ...updates, id, updatedAt: nowIso() };
+  await new Promise((res,rej)=>{ const r = store.put(merged); r.onsuccess=()=>res(true); r.onerror=()=>rej(r.error); });
+  return true;
+}
+
 export async function addTag({name, color, description}) {
   const id = uuid();
   const now = nowIso();
