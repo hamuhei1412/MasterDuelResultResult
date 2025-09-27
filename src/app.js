@@ -268,11 +268,25 @@ async function renderDashboard(){
   const selectedTags = filterTagsCtl.get();
   const filtered = filterByTags(matches, selectedTags, andMode);
 
-  const k = kpis(filtered);
+  // Period filter (dashboard-only): filter by #filter-start/end if set
+  const startInput = document.getElementById('filter-start');
+  const endInput = document.getElementById('filter-end');
+  let timeFiltered = filtered;
+  if (startInput?.value || endInput?.value){
+    const s = startInput?.value ? Date.parse(jstInputToIso(startInput.value)) : -Infinity;
+    const e = endInput?.value ? Date.parse(jstInputToIso(endInput.value)) : Infinity;
+    timeFiltered = filtered.filter(m => {
+      const t = Date.parse(m.playedAt||'');
+      const tt = isFinite(t)? t : 0;
+      return tt >= s && tt <= e;
+    });
+  }
+
+  const k = kpis(timeFiltered);
   mount($('#kpi'), el('div',{class:'kpi'},
     card('対戦数', String(k.total)),
-    card('勝ち数', String(filtered.filter(m=>m.result==='win').length)),
-    card('負け数', String(filtered.filter(m=>m.result==='loss').length)),
+    card('勝ち数', String(timeFiltered.filter(m=>m.result==='win').length)),
+    card('負け数', String(timeFiltered.filter(m=>m.result==='loss').length)),
     card('勝率', formatPct(k.winRate)),
     card('先攻数', String(k.firstCount)),
     card('後攻数', String(k.secondCount)),
@@ -288,12 +302,12 @@ async function renderDashboard(){
 
   // Rate line chart
   // プロジェクト期間内のみグラフ表示
-  let graphFiltered = filtered;
+  let graphFiltered = timeFiltered;
   const proj = state.projects.find(p=>p.id===state.activeProjectId);
   if (proj?.period && (proj.period.start || proj.period.end)){
     const s = proj.period.start ? Date.parse(proj.period.start) : -Infinity;
     const e = proj.period.end ? Date.parse(proj.period.end) : Infinity;
-    graphFiltered = filtered.filter(m => {
+    graphFiltered = graphFiltered.filter(m => {
       const t = Date.parse(m.playedAt||'');
       return (isFinite(t)?t:0) >= s && (isFinite(t)?t:0) <= e;
     });
@@ -321,7 +335,7 @@ async function renderDashboard(){
 
   // Coin toss pie (last 20 among filtered)
   try {
-    const last20c = filtered.slice(-20);
+    const last20c = timeFiltered.slice(-20);
     const heads = last20c.filter(m=> (m.initiative?.method==="coin") && m.initiative?.value==='heads').length;
     const tails = last20c.filter(m=> (m.initiative?.method==="coin") && m.initiative?.value==='tails').length;
     const coinItems = [
@@ -357,7 +371,7 @@ async function renderDashboard(){
   mount($('#matchup-table'), cont);
 
   // Tag stats table
-  const rows = tagStats(filtered);
+  const rows = tagStats(timeFiltered);
   const table = el('table', { class:'stats' });
   table.append(
     tr('th','タグ','件数','勝率','先攻率','後攻率','先攻勝率','後攻勝率'),
@@ -368,13 +382,13 @@ async function renderDashboard(){
   // Opponent deck breakdown pies
   try {
     // Last 20 among filtered (newest order preserved via slice(-20))
-    const last20 = filtered.slice(-20);
+    const last20 = timeFiltered.slice(-20);
     const last20Items = deckBreakdownItems(last20);
     ensurePieChart($('#opdeck-last20-canvas'), last20Items, { donut:false });
     renderPieLegend($('#opdeck-last20-legend'), last20Items);
 
     // All filtered matches in project
-    const allItems = deckBreakdownItems(filtered);
+    const allItems = deckBreakdownItems(timeFiltered);
     ensurePieChart($('#opdeck-all-canvas'), allItems, { donut:false });
     renderPieLegend($('#opdeck-all-legend'), allItems);
   } catch(_e) {
@@ -385,6 +399,11 @@ async function renderDashboard(){
   $('#filter-tags-mode').onchange = ()=> renderDashboard();
   // chip input triggers re-render on Enter via keydown; add slight delay
   $('#filter-tags').addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key==='Backspace') setTimeout(renderDashboard, 0); });
+  // period inputs
+  if (startInput) startInput.onchange = ()=> renderDashboard();
+  if (endInput) endInput.onchange = ()=> renderDashboard();
+  const clearBtn = document.getElementById('filter-clear-period');
+  if (clearBtn) clearBtn.onclick = ()=>{ if(startInput) startInput.value=''; if(endInput) endInput.value=''; renderDashboard(); };
   const winrateWinEl = document.getElementById('winrate-window');
   if (winrateWinEl){
     winrateWinEl.onchange = ()=>{
