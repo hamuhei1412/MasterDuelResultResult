@@ -177,12 +177,19 @@ async function renderRecentMatches(){
     const resLabel = m.result==='win' ? el('span',{class:'good'},'勝ち') : el('span',{class:'bad'},'負け');
     trEl.appendChild(el('td',{}, fmtJst(m.playedAt)));
     trEl.appendChild(el('td',{class:'result'}, resLabel));
-    trEl.appendChild(el('td',{}, m.turnOrder==='first'?'先攻':'後攻'));
+    {
+      const isFirst = m.turnOrder === 'first';
+      const turnLabel = isFirst ? '先攻' : '後攻';
+      const turnCls = isFirst ? 'first' : 'second';
+      trEl.appendChild(el('td',{}, el('span',{class:'badge '+turnCls}, turnLabel)));
+    }
     // コイントスの結果（表/裏）
     {
       const cv = (m.initiative && m.initiative.value) || null;
-      const label = cv === 'heads' ? '表' : (cv === 'tails' ? '裏' : '-');
-      trEl.appendChild(el('td',{}, label));
+      let label = '-'; let cls = '';
+      if (cv==='heads'){ label='表'; cls='coin-heads'; }
+      else if (cv==='tails'){ label='裏'; cls='coin-tails'; }
+      trEl.appendChild(el('td',{}, cls ? el('span',{class:'badge '+cls}, label) : label));
     }
     trEl.appendChild(el('td',{}, m.myDeckName));
     trEl.appendChild(el('td',{}, m.opDeckName));
@@ -311,6 +318,19 @@ async function renderDashboard(){
   }
   const maSeries = movingWinRateSeries(graphFiltered, windowSize);
   ensureLineChart($('#winrate-canvas'), maSeries, { xMode: 'count', color:'#10b981', area:'rgba(16,185,129,0.15)' });
+
+  // Coin toss pie (last 20 among filtered)
+  try {
+    const last20c = filtered.slice(-20);
+    const heads = last20c.filter(m=> (m.initiative?.method==="coin") && m.initiative?.value==='heads').length;
+    const tails = last20c.filter(m=> (m.initiative?.method==="coin") && m.initiative?.value==='tails').length;
+    const coinItems = [
+      { label:'表', value: heads, color: '#8b5cf6' },
+      { label:'裏', value: tails, color: '#f97316' },
+    ];
+    ensurePieChart($('#coin-last20-canvas'), coinItems, { donut:false });
+    renderPieLegend($('#coin-last20-legend'), coinItems);
+  } catch(_e){}
 
   // Matchup matrix
   const mx = matchupMatrix(graphFiltered);
@@ -713,11 +733,18 @@ async function renderHistory(){
     trEl.appendChild(el('td',{}, String(numberMap.get(m.id))));
     trEl.appendChild(el('td',{}, fmtJst(m.playedAt)));
     trEl.appendChild(el('td',{class:'result'}, resLabel));
-    trEl.appendChild(el('td',{}, m.turnOrder==='first'?'先攻':'後攻'));
+    {
+      const isFirst = m.turnOrder === 'first';
+      const turnLabel = isFirst ? '先攻' : '後攻';
+      const turnCls = isFirst ? 'first' : 'second';
+      trEl.appendChild(el('td',{}, el('span',{class:'badge '+turnCls}, turnLabel)));
+    }
     {
       const cv = (m.initiative && m.initiative.value) || null;
-      const label = cv === 'heads' ? '表' : (cv === 'tails' ? '裏' : '-');
-      trEl.appendChild(el('td',{}, label));
+      let label = '-'; let cls = '';
+      if (cv==='heads'){ label='表'; cls='coin-heads'; }
+      else if (cv==='tails'){ label='裏'; cls='coin-tails'; }
+      trEl.appendChild(el('td',{}, cls ? el('span',{class:'badge '+cls}, label) : label));
     }
     trEl.appendChild(el('td',{}, m.myDeckName));
     trEl.appendChild(el('td',{}, m.opDeckName));
